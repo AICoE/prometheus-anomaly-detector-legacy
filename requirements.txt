@@ -1,3 +1,4 @@
 requests
 fbprophet
 pandas
+boto3
