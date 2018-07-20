@@ -2,6 +2,8 @@ from lib.prometheus import Prometheus
 import pandas
 import json
 from lib.model import *
+from lib.ceph import CephConnect as cp
+
 from fbprophet import Prophet
 import os
 
@@ -54,9 +56,14 @@ for key in new_dict:
     forecast['values'] = data_pd['values']
     forecast = forecast[['timestamp','values','yhat','yhat_lower','yhat_upper']]
     output_json = key + forecast.to_json()
-    file = open('Predictions.json', 'w')
-    file.write(output_json)
-    file.close()
+
+    # Store Forecast to CEPH
+    session = cp()
+    object_path = "Predictions" + "/" + prom_host + "/" + url + "/" + "Predictions" + ".json"
+    print(session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json()))
+    # file = open('Predictions.json', 'w')
+    # file.write(output_json)
+    # file.close()
     # forecast.to_json()
     break
 
