@@ -76,6 +76,8 @@ def get_df_from_json(metric):
 
 url = os.getenv('URL')
 token = os.getenv('BEARER_TOKEN')
+chunk_size = str(os.getenv('CHUNK_SIZE','3h'))
+data_size = str(os.getenv('DATA_SIZE','3h'))
 
 prom = Prometheus(url=url, token=token)
 

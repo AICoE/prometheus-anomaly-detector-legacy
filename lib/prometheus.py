@@ -12,7 +12,7 @@ MAX_REQUEST_RETRIES = 5
 
 class Prometheus:
     """docstring for Prometheus."""
-    def __init__(self, url='', end_time=None, token=None, data_chunk='6h',stored_data='6h'):
+    def __init__(self, url='', end_time=None, token=None, data_chunk='1h',stored_data='1h'):
         self.headers = { 'Authorization': "bearer {}".format(token) }
         self.url = url
         self.prometheus_host = urlparse(self.url).netloc
