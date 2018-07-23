@@ -79,7 +79,7 @@ token = os.getenv('BEARER_TOKEN')
 chunk_size = str(os.getenv('CHUNK_SIZE','3h'))
 data_size = str(os.getenv('DATA_SIZE','3h'))
 
-prom = Prometheus(url=url, token=token)
+prom = Prometheus(url=url, token=token, data_chunk=chunk_size, stored_data=data_size)
 
 metric_name = 'kubelet_docker_operations_latency_microseconds'
 
