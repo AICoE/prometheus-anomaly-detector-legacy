@@ -1,18 +1,85 @@
 from lib.prometheus import Prometheus
 import pandas
 import json
-from lib.model import *
+# from lib.model import *
 from lib.ceph import CephConnect as cp
 
 from fbprophet import Prophet
 import os
+
+
+# def get_df_from_json(metric):
+#     print("Here")
+#     '''
+#     Method to convert a json object of a Prometheus metric to a dictionary of shaped Pandas DataFrames
+#
+#     The shape is dict[metric_metadata] = Pandas Object
+#
+#     Pandas Object = timestamp, value
+#                     15737933, 1
+#                     .....
+#     '''
+#     # metric_dict = {}
+#     print("Shaping Data...........")
+#     metric_dict_pd = {}
+#     for row in metric:
+#         # metric_dict[str(row['metric'])] = metric_dict.get(str(row['metric']),[]) + (row['values'])
+#         print("Row Values: ",row['values'])
+#         metric_metadata = str(row['metric'])
+#         if  metric_metadata not in metric_dict_pd:
+#             metric_dict_pd[metric_metadata] = pandas.DataFrame(columns=['timestamp', 'value'])
+#             pass
+#         else:
+#             temp_df = pandas.DataFrame(row['values'], columns=['timestamp', 'value'])
+#             # print("Row Values: ",row['values']
+#             metric_dict_pd[metric_metadata] = pandas.concat([metric_dict_pd[metric_metadata], temp_df])
+#             # del temp_df
+#             pass
+#         pass
+#         # metric_dict_pd[metric_metadata].set_index('timestamp')
+#     return metric_dict_pd
+
+def get_df_from_json(metric):
+    print("Here")
+    '''
+    Method to convert a json object of a Prometheus metric to a dictionary of shaped Pandas DataFrames
+
+    The shape is dict[metric_metadata] = Pandas Object
+
+    Pandas Object = timestamp, value
+                    15737933, 1
+                    .....
+    '''
+    # metric_dict = {}
+    print("Shaping Data...........")
+    metric_dict_pd = {}
+    # print("Length of metric: ", len(metric))
+    for row in metric:
+        # metric_dict[str(row['metric'])] = metric_dict.get(str(row['metric']),[]) + (row['values'])
+        metric_metadata = str(row['metric'])
+        # print(metric_metadata)
+        # print("Row Values: ",row['values'])
+        if  metric_metadata not in metric_dict_pd:
+            metric_dict_pd[metric_metadata] = pandas.DataFrame(row['values'], columns=['timestamp', 'value'])
+            pass
+        else:
+            temp_df = pandas.DataFrame(row['values'], columns=['timestamp', 'value'])
+            print(temp_df.head())
+            # print("Row Values: ",row['values']
+            metric_dict_pd[metric_metadata] = pandas.concat([metric_dict_pd[metric_metadata], temp_df])
+            # del temp_df
+            pass
+        pass
+        metric_dict_pd[metric_metadata].set_index('timestamp')
+    return metric_dict_pd
+
 
 url = os.getenv('URL')
 token = os.getenv('BEARER_TOKEN')
 
 prom = Prometheus(url=url, token=token)
 
-metric_name = prom.all_metrics()[1]
+metric_name = 'kubelet_docker_operations_latency_microseconds'
 
 print("Using Metric {}.".format(metric_name))
 
@@ -22,13 +89,13 @@ metric = prom.get_metric(metric_name)
 metric = json.loads(metric)
 
 # print(metric)
-# print("----------------------------------\n")
+print("----------------------------------\n")
 
 
 # Metric Json is converted to a shaped dataframe
 new_dict = get_df_from_json(metric)
-del metric
-
+# del metric
+print(len(new_dict))
 for key in new_dict:
     print("----------------------------------\n")
     print(key)
