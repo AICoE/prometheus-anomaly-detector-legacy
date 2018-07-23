@@ -1,6 +1,7 @@
 from lib.prometheus import Prometheus
 import pandas
 import json
+import time
 # from lib.model import *
 from lib.ceph import CephConnect as cp
 
@@ -58,26 +59,27 @@ def get_df_from_json(metric):
         # metric_dict[str(row['metric'])] = metric_dict.get(str(row['metric']),[]) + (row['values'])
         metric_metadata = str(row['metric'])
         # print(metric_metadata)
-        # print("Row Values: ",row['values'])
+        print("Row Values: ",row['values'])
         if  metric_metadata not in metric_dict_pd:
-            metric_dict_pd[metric_metadata] = pandas.DataFrame(row['values'], columns=['timestamp', 'value'])
+            metric_dict_pd[metric_metadata] = pandas.DataFrame(row['values'], columns=['ds', 'y'])
             pass
         else:
-            temp_df = pandas.DataFrame(row['values'], columns=['timestamp', 'value'])
+            temp_df = pandas.DataFrame(row['values'], columns=['ds', 'y'])
             print(temp_df.head())
             # print("Row Values: ",row['values']
             metric_dict_pd[metric_metadata] = pandas.concat([metric_dict_pd[metric_metadata], temp_df])
             # del temp_df
             pass
         pass
-        metric_dict_pd[metric_metadata].set_index('timestamp')
+        # metric_dict_pd[metric_metadata].set_index('timestamp')
+        break
     return metric_dict_pd
 
 
 url = os.getenv('URL')
 token = os.getenv('BEARER_TOKEN')
-chunk_size = str(os.getenv('CHUNK_SIZE','3h'))
-data_size = str(os.getenv('DATA_SIZE','3h'))
+chunk_size = str(os.getenv('CHUNK_SIZE','5m'))
+data_size = str(os.getenv('DATA_SIZE','5m'))
 
 prom = Prometheus(url=url, token=token, data_chunk=chunk_size, stored_data=data_size)
 
@@ -124,9 +126,10 @@ print(len(train_frame), len(test_frame), len(data))
 print(train_frame.head())
 print(test_frame.head())
 print(data.head())
-train_frame['y'] = train_frame['value']
-train_frame['ds'] = train_frame['timestamp']
+# train_frame['y'] = train_frame['value']
+# train_frame['ds'] = train_frame['timestamp']
 
+# time.sleep(1)
 m = Prophet()
 print("Fitting the train_frame")
 m.fit(train_frame)
