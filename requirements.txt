@@ -2,3 +2,4 @@ requests
 fbprophet
 pandas
 boto3
+matplotlib
