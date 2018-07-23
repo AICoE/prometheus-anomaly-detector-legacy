@@ -13,20 +13,26 @@ token = os.getenv('BEARER_TOKEN')
 prom = Prometheus(url=url, token=token)
 
 metric_name = prom.all_metrics()[1]
+
+print("Using Metric {}.".format(metric_name))
+
 metric = prom.get_metric(metric_name)
 
 
 metric = json.loads(metric)
 
 # print(metric)
-print("----------------------------------\n")
+# print("----------------------------------\n")
 
 
 # Metric Json is converted to a shaped dataframe
 new_dict = get_df_from_json(metric)
+del metric
 
 for key in new_dict:
+    print("----------------------------------\n")
     print(key)
+    print("----------------------------------\n")
     # print(new_dict[key])
     # data_pd = new_dict[key]
     train_frame = new_dict[key][0 : int(0.7*len(new_dict[key]))]
