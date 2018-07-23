@@ -39,7 +39,9 @@ for key in new_dict:
     test_frame = new_dict[key][int(0.7*len(new_dict[key])) : ]
 
     print(len(train_frame), len(test_frame), len(new_dict[key]))
-
+    print(train_frame.head())
+    print(test_frame.head())
+    print(new_dict[key].head())
     train_frame['y'] = train_frame['value']
     train_frame['ds'] = train_frame['timestamp']
 
