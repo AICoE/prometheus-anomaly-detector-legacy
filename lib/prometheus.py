@@ -12,14 +12,14 @@ MAX_REQUEST_RETRIES = 5
 
 class Prometheus:
     """docstring for Prometheus."""
-    def __init__(self, url='', end_time=None, token=None):
+    def __init__(self, url='', end_time=None, token=None, data_chunk='6h',stored_data='6h'):
         self.headers = { 'Authorization': "bearer {}".format(token) }
         self.url = url
         self.prometheus_host = urlparse(self.url).netloc
         self._all_metrics = None
-        self.data_chunk_size = '1m'
+        self.data_chunk_size = data_chunk
         self.end_time = datetime.datetime.now()
-        self.stored_data_range = '5m'
+        self.stored_data_range = stored_data
         self.DATA_CHUNK_SIZE_LIST = {
             '1m' : 60,
             '5m' : 300,
@@ -51,7 +51,22 @@ class Prometheus:
                 ))
         return self._all_metrics
 
-    def get_metric(self, name):
+    def get_metric(self, name, chunks=None, data_size=None):
+        if chunks:
+            if str(chunks) in self.DATA_CHUNK_SIZE_LIST:
+                self.data_chunk_size = str(chunks)
+                pass
+            else:
+                print("Invalid Chunk Size, using default value: {}".format(self.data_chunk_size))
+            pass
+        if data_size:
+            if str(data_size) in self.DATA_CHUNK_SIZE_LIST:
+                self.stored_data_range = str(data_size)
+                pass
+            else:
+                print("Invalid Data Size, using default value: {}".format(self.stored_data_range))
+            pass
+
         if not name in self.all_metrics():
             raise Exception("{} is not a valid metric".format(name))
         elif DEBUG:
@@ -64,67 +79,67 @@ class Prometheus:
             return metrics
 
     # def get_metrics_from_prom(self, name, chunks):
-        if not name in self.all_metrics():
-            raise Exception("{} is not a valid metric".format(name))
-
-        # start = self.start_time.timestamp()
-        end_timestamp = self.end_time.timestamp()
-        chunk_size = self.DATA_CHUNK_SIZE_LIST[self.data_chunk_size]
-        start = end_timestamp #- self.DATA_CHUNK_SIZE_LIST[self.stored_data_range] + chunk_size
-        data = []
-        for i in range(chunks):
-            # gc.collect() # Garbage collect to save Memory
-            if DEBUG:
-                print("Getting chunk: ", i)
-                print("Start Time: ",datetime.datetime.fromtimestamp(start))
-
-            tries = 0
-            while tries < MAX_REQUEST_RETRIES:  # Retry code in case of errors
-                response = requests.get('{0}/api/v1/query'.format(self.url),    # using the query API to get raw data
-                                        params={'query': name+'['+self.data_chunk_size+']',
-                                                'time': start
-                                                },
-                                        verify=False, # Disable ssl certificate verification temporarily
-                                        headers=self.headers)
-                if DEBUG:
-                    print(response.url)
-                    pass
-
-                tries+=1
-                if response.status_code == 200:
-                    data += response.json()['data']['result']
-
-                    if DEBUG:
-                        # print("Size of recent chunk = ",getsizeof(data))
-                        # print(data)
-                        print(datetime.datetime.fromtimestamp(response.json()['data']['result'][0]['values'][0][0]))
-                        print(datetime.datetime.fromtimestamp(response.json()['data']['result'][0]['values'][-1][0]))
-                        pass
-
-                    del response
-                    tries = MAX_REQUEST_RETRIES
-                elif response.status_code == 504:
-                    if tries >= MAX_REQUEST_RETRIES:
-                        self.connection_errors_count+=1
-                        return False
-                    else:
-                        print("Retry Count: ",tries)
-                        sleep(CONNECTION_RETRY_WAIT_TIME)    # Wait for a second before making a new request
-                else:
-                    if tries >= MAX_REQUEST_RETRIES:
-                        self.connection_errors_count+=1
-                        raise Exception("HTTP Status Code {} {} ({})".format(
-                            response.status_code,
-                            requests.status_codes._codes[response.status_code][0],
-                            response.content
-                        ))
-                    else:
-                        print("Retry Count: ",tries)
-                        sleep(CONNECTION_RETRY_WAIT_TIME)
-
-            start += chunk_size
-
-        return(json.dumps(data)) #This works
+    #     if not name in self.all_metrics():
+    #         raise Exception("{} is not a valid metric".format(name))
+    #
+    #     # start = self.start_time.timestamp()
+    #     end_timestamp = self.end_time.timestamp()
+    #     chunk_size = self.DATA_CHUNK_SIZE_LIST[self.data_chunk_size]
+    #     start = end_timestamp #- self.DATA_CHUNK_SIZE_LIST[self.stored_data_range] + chunk_size
+    #     data = []
+    #     for i in range(chunks):
+    #         # gc.collect() # Garbage collect to save Memory
+    #         if DEBUG:
+    #             print("Getting chunk: ", i)
+    #             print("Start Time: ",datetime.datetime.fromtimestamp(start))
+    #
+    #         tries = 0
+    #         while tries < MAX_REQUEST_RETRIES:  # Retry code in case of errors
+    #             response = requests.get('{0}/api/v1/query'.format(self.url),    # using the query API to get raw data
+    #                                     params={'query': name+'['+self.data_chunk_size+']',
+    #                                             'time': start
+    #                                             },
+    #                                     verify=False, # Disable ssl certificate verification temporarily
+    #                                     headers=self.headers)
+    #             if DEBUG:
+    #                 print(response.url)
+    #                 pass
+    #
+    #             tries+=1
+    #             if response.status_code == 200:
+    #                 data += response.json()['data']['result']
+    #
+    #                 if DEBUG:
+    #                     # print("Size of recent chunk = ",getsizeof(data))
+    #                     # print(data)
+    #                     print(datetime.datetime.fromtimestamp(response.json()['data']['result'][0]['values'][0][0]))
+    #                     print(datetime.datetime.fromtimestamp(response.json()['data']['result'][0]['values'][-1][0]))
+    #                     pass
+    #
+    #                 del response
+    #                 tries = MAX_REQUEST_RETRIES
+    #             elif response.status_code == 504:
+    #                 if tries >= MAX_REQUEST_RETRIES:
+    #                     self.connection_errors_count+=1
+    #                     return False
+    #                 else:
+    #                     print("Retry Count: ",tries)
+    #                     sleep(CONNECTION_RETRY_WAIT_TIME)    # Wait for a second before making a new request
+    #             else:
+    #                 if tries >= MAX_REQUEST_RETRIES:
+    #                     self.connection_errors_count+=1
+    #                     raise Exception("HTTP Status Code {} {} ({})".format(
+    #                         response.status_code,
+    #                         requests.status_codes._codes[response.status_code][0],
+    #                         response.content
+    #                     ))
+    #                 else:
+    #                     print("Retry Count: ",tries)
+    #                     sleep(CONNECTION_RETRY_WAIT_TIME)
+    #
+    #         start += chunk_size
+    #
+    #     return(json.dumps(data)) #This works
 
     def get_metrics_from_prom(self, name, chunks):
         if not name in self.all_metrics():
