@@ -5,10 +5,10 @@ import os
 class CephConnect:
   def __init__(self, access_key = None, secret_key = None, object_store = None, object_store_endpoint = None):
       self.boto_settings = {
-          'access_key': os.getenv('DH_CEPH_KEY', access_key),
-          'secret_key': os.getenv('DH_CEPH_SECRET', secret_key),
-          'object_store': os.getenv('DH_CEPH_BUCKET', object_store),
-          'object_store_endpoint': os.getenv('DH_CEPH_HOST', object_store_endpoint)
+          'access_key': os.getenv('BOTO_ACCESS_KEY', access_key),
+          'secret_key': os.getenv('BOTO_SECRET_KEY', secret_key),
+          'object_store': os.getenv('BOTO_OBJECT_STORE', object_store),
+          'object_store_endpoint': os.getenv('BOTO_STORE_ENDPOINT', object_store_endpoint)
       }
 
   def store_data(self, name, values, object_path = None):
@@ -31,7 +31,11 @@ class CephConnect:
             object_path = str(name)
             pass
         object_path = object_path + ".bz2"
-        payload = bz2.compress(values.encode('utf-8'))
+        try:
+            payload = bz2.compress(values.encode('utf-8'))
+
+        except AttributeError:
+            payload = bz2.compress(values)
         rv = s3.meta.client.put_object(Body=payload,
                                        Bucket=self.boto_settings['object_store'],
                                        Key=object_path)

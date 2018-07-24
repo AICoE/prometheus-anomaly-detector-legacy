@@ -28,7 +28,8 @@ class Prometheus:
             '3h' : 10800,
             '6h' : 21600,
             '12h': 43200,
-            '1d' : 86400}
+            '1d' : 86400,
+            '2d' : 172800}
 
     def all_metrics(self):
         '''
