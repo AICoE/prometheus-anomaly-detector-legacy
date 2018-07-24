@@ -44,7 +44,7 @@ def get_df_from_json(metric):
             pass
         pass
         metric_dict_pd[metric_metadata].set_index('ds')
-        break
+        # break
     return metric_dict_pd
 
 
