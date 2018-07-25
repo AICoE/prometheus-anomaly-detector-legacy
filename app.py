@@ -11,7 +11,7 @@ import gc
 import pickle
 
 # Plotting
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 
 def get_df_from_json(metric):
