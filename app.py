@@ -14,7 +14,7 @@ import pickle
 # import matplotlib.pyplot as plt
 
 
-def get_df_from_json(metric):
+def get_df_from_json(metric, metric_dict_pd=None):
     '''
     Method to convert a json object of a Prometheus metric to a dictionary of shaped Pandas DataFrames
 
@@ -23,10 +23,15 @@ def get_df_from_json(metric):
     Pandas Object = timestamp, value
                     15737933, 1
                     .....
+
+    This method can also be used to update an existing dictionary with new data
     '''
     # metric_dict = {}
+    if not metric_dict_pd:  # Initiate an empty dictionary if not already provided
+        metric_dict_pd = {}
+        pass
     print("Shaping Data...........")
-    metric_dict_pd = {}
+    # metric_dict_pd = {}
     # print("Length of metric: ", len(metric))
     for row in metric:
         # metric_dict[str(row['metric'])] = metric_dict.get(str(row['metric']),[]) + (row['values'])
@@ -48,144 +53,238 @@ def get_df_from_json(metric):
         # break
     return metric_dict_pd
 
+def predict_metrics(pd_dict, limit_labels=5, prediction_range=1440):
+    '''
+    This Function takes input a dictionary of Pandas DataFrames, trains the Prophet model for each dataframe and returns a dictionary of predictions.
+    '''
 
+    total_label_num = len(pd_dict)
+    LABEL_LIMIT = limit_labels
+    PREDICT_DURATION = prediction_range
 
-url = os.getenv('URL')
-token = os.getenv('BEARER_TOKEN')
+    current_label_num = 0
+    limit_iterator_num = 0
 
-# Specific metric to run the model on
-metric_name = 'kubelet_docker_operations_latency_microseconds'
-print("Using Metric {}.".format(metric_name))
+    predictions_dict = {}
 
-# This is where the model dictionary will be stored and retrieved from
-model_storage_path = "Models" + "/" + url[8:] + "/"+ metric_name + "/" + "prophet_model" + ".pkl"
-
-# Chunk size, download the complete data, but in smaller chunks, should be less than or equal to DATA_SIZE
-chunk_size = str(os.getenv('CHUNK_SIZE','1d'))
-
-# Net data size to scrape from prometheus
-data_size = str(os.getenv('DATA_SIZE','1d'))
-
-# Number of minutes, the model should predict the values for
-PREDICT_DURATION=100 # minutes, 1440 = 24 Hours
-
-# Limit to first few labels of the metric
-LABEL_LIMIT = None
-
-# Preparing a connection to Prometheus host
-prom = Prometheus(url=url, token=token, data_chunk=chunk_size, stored_data=data_size)
-
-
-
-# Get metric data from Prometheus
-metric = prom.get_metric(metric_name)
-print("metric collected.")
-del prom
-
-
-
-# Convert data to json
-metric = json.loads(metric)
-
-# print(metric)
-
-
-# Metric Json is converted to a shaped dataframe
-pd_dict = get_df_from_json(metric) # This dictionary contains all the sub-labels as keys and their data as Pandas DataFrames
-del metric
-
-
-session = cp()
-model_dict = session.get_model_dict(model_storage_path) # Dictionary where all the models will be stored
-
-current_label_num = 0
-limit_iterator_num = 0
-total_label_num = len(pd_dict)
-print("Numer of labels: {} \n".format(total_label_num))
-
-for meta_data in pd_dict:
-    try:
-        if LABEL_LIMIT: # Don't run on all the labels
-            if limit_iterator_num > int(LABEL_LIMIT):
-                break
+    for meta_data in pd_dict:
+        try:
+            if LABEL_LIMIT: # Don't run on all the labels
+                if limit_iterator_num > int(LABEL_LIMIT):
+                    break
+                    pass
                 pass
-            pass
 
-        current_label_num += 1
-        limit_iterator_num += 1
+            current_label_num += 1
+            limit_iterator_num += 1
 
-        print("Training Label {}/{}".format(current_label_num,total_label_num))
-        data = pd_dict[meta_data]
+            print("Training Label {}/{}".format(current_label_num,total_label_num))
+            data = pd_dict[meta_data]
 
-        print("----------------------------------\n")
-        print(meta_data)
-        print("----------------------------------\n")
+            print("----------------------------------\n")
+            print(meta_data)
+            print("Number of Data Points: {}".format(len(pd_dict[meta_data])))
+            print("----------------------------------\n")
 
-        data['ds'] = pandas.to_datetime(data['ds'], unit='s')
+            data['ds'] = pandas.to_datetime(data['ds'], unit='s')
 
-        train_frame = data
-        # train_frame = data[0 : int(0.7*len(data))]
-        # test_frame = data[int(0.7*len(data)) : ]
+            train_frame = data
+            # train_frame = data[0 : int(0.7*len(data))]
+            # test_frame = data[int(0.7*len(data)) : ]
 
-        # print(len(train_frame))
-        # print(train_frame.head())
+            # print(len(train_frame))
+            # print(train_frame.head())
 
-        # Prophet Modelling begins here
+            # Prophet Modelling begins here
 
-        if meta_data not in model_dict: # initialize a model if not initialized in the model_dict
-            print("initializing new model for metadata {}....".format(meta_data))
-            model_dict[meta_data] = Prophet(daily_seasonality = True, weekly_seasonality=True)
+            # if meta_data not in model_dict: # initialize a model if not initialized in the model_dict
+                # print("initializing new model for metadata {}....".format(meta_data))
+            m = Prophet(daily_seasonality = True, weekly_seasonality=True)
 
             print("Fitting the train_frame")
-            model_dict[meta_data].fit(train_frame)
-            pass
+            m.fit(train_frame)
+
+            future = m.make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
 
 
-        try:
-            future = model_dict[meta_data].make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
-        except Exception as e:
-            if str(e) == "Model must be fit before this can be used.":
-                model_dict[meta_data].fit(train_frame)
-                future = model_dict[meta_data].make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
-                pass
-            else:
-                raise e
-        # future = m.make_future_dataframe(periods=int(len(test_frame) * 1.1),freq="1MIN")
-        forecast = model_dict[meta_data].predict(future)
-        # print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']])
+            # try:
+            #     future = m.make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
+            # except Exception as e:
+            #     if str(e) == "Model must be fit before this can be used.":
+            #         m.fit(train_frame)
+            #         future = m.make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
+            #         pass
+            #     else:
+            #         raise e
+            # future = m.make_future_dataframe(periods=int(len(test_frame) * 1.1),freq="1MIN")
+            forecast = m.predict(future)
+            # print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']])
 
-        # To Plot
-        # fig1 = model_dict[meta_data].plot(forecast)
-        #
-        # fig2 = model_dict[meta_data].plot_components(forecast)
-        forecast['timestamp'] = forecast['ds']
-        forecast['values'] = data['y']
-        forecast = forecast[['timestamp','values','yhat','yhat_lower','yhat_upper']]
-        forecast = forecast.set_index('timestamp')
+            # To Plot
+            # fig1 = model_dict[meta_data].plot(forecast)
+            #
+            # fig2 = model_dict[meta_data].plot_components(forecast)
+            forecast['timestamp'] = forecast['ds']
+            # forecast['values'] = data['y']
+            forecast = forecast[['timestamp','yhat','yhat_lower','yhat_upper']]
+            forecast = forecast.set_index('timestamp')
 
-        # forecast.plot()
-        # plt.legend()
-        # plt.show()
-    except ValueError:
-        print("Too many NaN values........Skipping this label")
-        limit_iterator_num -= 1
+            # Store predictions in output dictionary
+            predictions_dict[meta_data] = forecast
+
+            # forecast.plot()
+            # plt.legend()
+            # plt.show()
+        except ValueError:
+            print("Too many NaN values........Skipping this label")
+            limit_iterator_num -= 1
+
+        pass
+
+    return predictions_dict
+
+
+if __name__ == "__main__":
+
+    url = os.getenv('URL')
+    token = os.getenv('BEARER_TOKEN')
+
+    # Specific metric to run the model on
+    metric_name = os.getenv('METRIC_NAME','kubelet_docker_operations_latency_microseconds')
+
+    print("Using Metric {}.".format(metric_name))
+
+    # This is where the model dictionary will be stored and retrieved from
+    model_storage_path = "Models" + "/" + url[8:] + "/"+ metric_name + "/" + "prophet_model" + ".pkl"
+
+    # Chunk size, download the complete data, but in smaller chunks, should be less than or equal to DATA_SIZE
+    chunk_size = str(os.getenv('CHUNK_SIZE','1d'))
+
+    # Net data size to scrape from prometheus
+    data_size = str(os.getenv('DATA_SIZE','1d'))
+
+    # Number of minutes, the model should predict the values for
+    # PREDICT_DURATION=1440 # minutes, 1440 = 24 Hours
+
+    # Limit to first few labels of the metric
+    # LABEL_LIMIT = None
+
+    # Preparing a connection to Prometheus host
+    prom = Prometheus(url=url, token=token, data_chunk=chunk_size, stored_data=data_size)
+
+
+
+    # Get metric data from Prometheus
+    metric = prom.get_metric(metric_name)
+    print("metric collected.")
+    del prom
+
+    # Convert data to json
+    metric = json.loads(metric)
+
+    # print(metric)
+
+    # Metric Json is converted to a shaped dataframe
+    pd_dict = get_df_from_json(metric) # This dictionary contains all the sub-labels as keys and their data as Pandas DataFrames
+    del metric
+
+    predictions = predict_metrics(pd_dict)
+    for x in predictions:
+        print(predictions[x].head())
 
     pass
-
-
-# output['values'] = forecast[['timestamp','yhat']].to_json()
-# output_json = json.dumps(output)
-
+# session = cp()
+# model_dict = session.get_model_dict(model_storage_path) # Dictionary where all the models will be stored
 #
-file_name = 'prophet_model.pkl'
-file = open(file_name, 'wb')
-pickle.dump(model_dict, file)
-file.close()
-
-# Store Forecast to CEPH
-print(session.store_data(name = metric_name,
-                        object_path = model_storage_path,
-                        values = pickle.dumps(model_dict)))
+# current_label_num = 0
+# limit_iterator_num = 0
+# total_label_num = len(pd_dict)
+# print("Numer of labels: {} \n".format(total_label_num))
+#
+# for meta_data in pd_dict:
+#     try:
+#         if LABEL_LIMIT: # Don't run on all the labels
+#             if limit_iterator_num > int(LABEL_LIMIT):
+#                 break
+#                 pass
+#             pass
+#
+#         current_label_num += 1
+#         limit_iterator_num += 1
+#
+#         print("Training Label {}/{}".format(current_label_num,total_label_num))
+#         data = pd_dict[meta_data]
+#
+#         print("----------------------------------\n")
+#         print(meta_data)
+#         print("Number of Data Points: {}".format(len(pd_dict[meta_data])))
+#         print("----------------------------------\n")
+#
+#         data['ds'] = pandas.to_datetime(data['ds'], unit='s')
+#
+#         train_frame = data
+#         # train_frame = data[0 : int(0.7*len(data))]
+#         # test_frame = data[int(0.7*len(data)) : ]
+#
+#         # print(len(train_frame))
+#         # print(train_frame.head())
+#
+#         # Prophet Modelling begins here
+#
+#         if meta_data not in model_dict: # initialize a model if not initialized in the model_dict
+#             print("initializing new model for metadata {}....".format(meta_data))
+#             model_dict[meta_data] = Prophet(daily_seasonality = True, weekly_seasonality=True)
+#
+#             print("Fitting the train_frame")
+#             model_dict[meta_data].fit(train_frame)
+#             pass
+#
+#
+#         try:
+#             future = model_dict[meta_data].make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
+#         except Exception as e:
+#             if str(e) == "Model must be fit before this can be used.":
+#                 model_dict[meta_data].fit(train_frame)
+#                 future = model_dict[meta_data].make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
+#                 pass
+#             else:
+#                 raise e
+#         # future = m.make_future_dataframe(periods=int(len(test_frame) * 1.1),freq="1MIN")
+#         forecast = model_dict[meta_data].predict(future)
+#         # print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']])
+#
+#         # To Plot
+#         # fig1 = model_dict[meta_data].plot(forecast)
+#         #
+#         # fig2 = model_dict[meta_data].plot_components(forecast)
+#         forecast['timestamp'] = forecast['ds']
+#         forecast['values'] = data['y']
+#         forecast = forecast[['timestamp','values','yhat','yhat_lower','yhat_upper']]
+#         forecast = forecast.set_index('timestamp')
+#
+#         # forecast.plot()
+#         # plt.legend()
+#         # plt.show()
+#     except ValueError:
+#         print("Too many NaN values........Skipping this label")
+#         limit_iterator_num -= 1
+#
+#     pass
+#
+#
+# # output['values'] = forecast[['timestamp','yhat']].to_json()
+# # output_json = json.dumps(output)
+#
+# #
+# file_name = 'prophet_model.pkl'
+# file = open(file_name, 'wb')
+# pickle.dump(model_dict, file)
+# file.close()
+#
+# # Store Forecast to CEPH
+# print(session.store_data(name = metric_name,
+#                         object_path = model_storage_path,
+#                         values = pickle.dumps(model_dict)))
 
 
 
