@@ -18,7 +18,7 @@ import atexit
 
 app = Flask(__name__)
 
-data_window = 60 # Number of days of past data, the model should use to train
+data_window = int(os.getenv('DATA_WINDOW_SIZE',60)) # Number of days of past data, the model should use to train
 
 url = os.getenv('URL')
 token = os.getenv('BEARER_TOKEN')
@@ -37,11 +37,12 @@ chunk_size = str(os.getenv('CHUNK_SIZE','1d'))
 # Net data size to scrape from prometheus
 data_size = str(os.getenv('DATA_SIZE','1d'))
 
-
+train_schedule = int(os.getenv('TRAINING_REPEAT_HOURS',24))
 
 data_dict = {}
 predictions_dict = {}
 current_metric_metadata = ""
+
 def job(current_time):
     # TODO: Replace this function with model training function and set up the correct IntervalTrigger time
     global data_dict, predictions_dict, current_metric_metadata, data_window, url, token, chunk_size, data_size
@@ -92,7 +93,7 @@ scheduler = BackgroundScheduler()
 scheduler.start()
 scheduler.add_job(
     func=lambda: job(datetime.now()),
-    trigger=IntervalTrigger(hours=1),# change this to a different interval
+    trigger=IntervalTrigger(hours=train_schedule),# change this to a different interval
     id='training_job',
     name='Train Prophet model every day regularly',
     replace_existing=True)
@@ -129,23 +130,6 @@ TIMINGS = Histogram('http_request_duration_seconds', 'HTTP request latency (seco
 
 # A gauge to count the number of packages newly added
 PACKAGES_NEW = Gauge('packages_newly_added', 'Packages newly added')
-
-#Store the different columns of the pandas dataframe
-yhat_upper = data['yhat_upper']
-yhat_lower = data['yhat_lower']
-yhat = data['yhat']
-#Converting timestamp to Unix time
-# print("Data Timestamp: \n",data['timestamp'].head())
-# timestamp = data['timestamp']
-print(data.head())
-
-print(data.tail())
-
-#Find the current timestamp
-current_time = datetime.now()
-print("The current time is: \n")
-print(current_time)
-
 
 
 # Standard Flask route stuff.
