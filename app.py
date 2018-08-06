@@ -5,11 +5,13 @@ import sys
 import bz2
 import pandas
 import argparse
+import pickle
 from flask import Flask, render_template_string, abort
 from datetime import datetime, timedelta
 from prometheus_client import CollectorRegistry, generate_latest, REGISTRY, Counter, Gauge, Histogram
 from prometheus import Prometheus
 from model import *
+from ceph import CephConnect as cp
 
 # Scheduling stuff
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -29,7 +31,7 @@ metric_name = os.getenv('METRIC_NAME','kubelet_docker_operations_latency_microse
 print("Using Metric {}.".format(metric_name))
 
 # This is where the model dictionary will be stored and retrieved from
-model_storage_path = "Models" + "/" + url[8:] + "/"+ metric_name + "/" + "prophet_model" + ".pkl"
+data_storage_path = "Data_Frames" + "/" + url[8:] + "/"+ metric_name + "/" + "prophet_model" + ".pkl"
 
 # Chunk size, download the complete data, but in smaller chunks, should be less than or equal to DATA_SIZE
 chunk_size = str(os.getenv('CHUNK_SIZE','1d'))
@@ -42,11 +44,12 @@ train_schedule = int(os.getenv('TRAINING_REPEAT_HOURS',24))
 data_dict = {}
 predictions_dict = {}
 current_metric_metadata = ""
-
+# iteration = 0
 def job(current_time):
     # TODO: Replace this function with model training function and set up the correct IntervalTrigger time
     global data_dict, predictions_dict, current_metric_metadata, data_window, url, token, chunk_size, data_size
     global data
+    # iteration += 1
     prom = Prometheus(url=url, token=token, data_chunk=chunk_size, stored_data=data_size)
     metric = prom.get_metric(metric_name)
     print("metric collected.")
@@ -57,6 +60,7 @@ def job(current_time):
     # Metric Json is converted to a shaped dataframe
     data_dict = get_df_from_json(metric, data_dict, data_window) # This dictionary contains all the sub-labels as keys and their data as Pandas DataFrames
     del metric, prom
+    print("DataFrame stored at: ",cp().store_data(metric_name, pickle.dumps(data_dict), (data_storage_path + str(datetime.datetime.today().strftime('%Y%m%d%H%M')))))
     for x in data_dict:
         # if (len(data_dict[x].dropna()) > 100):
         print(data_dict[x].head(5))
@@ -107,7 +111,7 @@ atexit.register(lambda: scheduler.shutdown())
 # args = parser.parse_args()
 # #Read the JSON file
 # data = pandas.read_json(args.file)
-print(data.head())
+# print(data.head())
 
 # modify the DataFrame
 # data = data.set_index(data['timestamp'])
