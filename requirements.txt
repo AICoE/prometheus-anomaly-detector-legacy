@@ -3,3 +3,6 @@ fbprophet
 pandas
 boto3
 matplotlib
+flask
+apscheduler
+prometheus_client
