@@ -60,7 +60,7 @@ def job(current_time):
     # Metric Json is converted to a shaped dataframe
     data_dict = get_df_from_json(metric, data_dict, data_window) # This dictionary contains all the sub-labels as keys and their data as Pandas DataFrames
     del metric, prom
-    print("DataFrame stored at: ",cp().store_data(metric_name, pickle.dumps(data_dict), (data_storage_path + str(datetime.datetime.today().strftime('%Y%m%d%H%M')))))
+    print("DataFrame stored at: ",cp().store_data(metric_name, pickle.dumps(data_dict), (data_storage_path + str(datetime.now().strftime('%Y%m%d%H%M')))))
     for x in data_dict:
         # if (len(data_dict[x].dropna()) > 100):
         print(data_dict[x].head(5))
