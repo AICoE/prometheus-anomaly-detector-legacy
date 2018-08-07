@@ -6,6 +6,7 @@ import time
 from ceph import CephConnect as cp
 from datetime import datetime, timedelta
 from fbprophet import Prophet
+from sortedcontainers import SortedDict
 import os
 import gc
 import pickle
@@ -36,7 +37,7 @@ def get_df_from_json(metric, metric_dict_pd={}, data_window=5):
     # print("Length of metric: ", len(metric))
     for row in metric:
         # metric_dict[str(row['metric'])] = metric_dict.get(str(row['metric']),[]) + (row['values'])
-        metric_metadata = str(row['metric'])
+        metric_metadata = str(SortedDict(row['metric']))[11:-1] # Sort the dictionary and then convert it to string so it can be hashed
         # print(metric_metadata)
         # print("Row Values: ",row['values'])
         if  metric_metadata not in metric_dict_pd:
