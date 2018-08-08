@@ -71,7 +71,7 @@ def job(current_time):
         break
         pass
 
-    predictions_dict = predict_metrics(data_dict)
+    predictions_dict = predict_metrics_fourier(data_dict)
     for key in predictions_dict:
         current_metric_metadata = key
         data = predictions_dict[key]

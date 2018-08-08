@@ -1,5 +1,7 @@
 from prometheus import Prometheus
 import pandas
+import numpy as np
+from numpy import fft
 import json
 import time
 # from lib.model import *
@@ -10,6 +12,7 @@ from sortedcontainers import SortedDict
 import os
 import gc
 import pickle
+import collections
 
 # Plotting
 # import matplotlib.pyplot as plt
@@ -32,7 +35,7 @@ def get_df_from_json(metric, metric_dict_pd={}, data_window=5):
     earliest_data_time = current_time - timedelta(days = data_window)
 
 
-    print("Shaping Data...........")
+    print("Pre-processing Data...........")
     # metric_dict_pd = {}
     # print("Length of metric: ", len(metric))
     for row in metric:
@@ -163,6 +166,80 @@ def predict_metrics(pd_dict, limit_labels=1, prediction_range=1440):
 
     return predictions_dict
 
+def fourierExtrapolation(x, n_predict, n_harm):
+    n = x.size
+    #n_harm = 100                     # number of harmonics in model
+    t = np.arange(0, n)
+    p = np.polyfit(t, x, 1)         # find linear trend in x
+    x_notrend = x - p[0] * t        # detrended x
+    x_freqdom = fft.fft(x_notrend)  # detrended x in frequency domain
+    f = fft.fftfreq(n)              # frequencies
+    indexes = np.arange(n).tolist()
+    # sort indexes by frequency, lower -> higher
+    indexes.sort(key = lambda i:np.absolute(f[i]))
+ 
+    t = np.arange(0, n + n_predict)
+    restored_sig = np.zeros(t.size)
+    for i in indexes[:1 + n_harm * 2]:
+        ampli = np.absolute(x_freqdom[i]) / n   # amplitude
+        phase = np.angle(x_freqdom[i])          # phase
+        restored_sig += ampli * np.cos(2 * np.pi * f[i] * t + phase)
+    return restored_sig + p[0] * t
+
+def predict_metrics_fourier(pd_dict, limit_labels=1, prediction_range=1440):
+    total_label_num = len(pd_dict)
+    LABEL_LIMIT = limit_labels
+    PREDICT_DURATION = prediction_range
+
+    current_label_num = 0
+    limit_iterator_num = 0
+
+    predictions_dict = {}
+
+    for meta_data in pd_dict:
+        try:
+            if LABEL_LIMIT: # Don't run on all the labels
+                if limit_iterator_num > int(LABEL_LIMIT):
+                    break
+                    pass
+                pass
+            data = pd_dict[meta_data]
+            data['ds'] = pandas.to_datetime(data['ds'], unit='s')
+            vals = np.array(data["y"].tolist())
+            
+            # run model and trim forecast to only newest values
+            print("Training Model......")
+            forecast_vals = fourierExtrapolation(vals, prediction_range, int(len(vals)/3))
+            dataframe_cols = {}
+            dataframe_cols["yhat"] = np.array(forecast_vals)
+            
+            # find most recent timestamp from original data and extrapolate new
+            # timestamps
+            print("Creating Dummpy Timestamps.....")
+            min_time = min(data["ds"])
+            dataframe_cols["timestamp"] = pandas.date_range(min_time, periods=len(forecast_vals), freq='M')
+            
+            # create dummy upper and lower bounds
+            print("Computing Bounds....")
+            upper_bound = np.mean(forecast_vals) + np.std(forecast_vals)
+            lower_bound = np.mean(forecast_vals) - np.std(forecast_vals)
+            dataframe_cols["yhat_upper"] = np.full((len(forecast_vals)), upper_bound)
+            dataframe_cols["yhat_lower"] = np.full((len(forecast_vals)), lower_bound)
+            
+            # create series and index into precictions_dict
+            print("Formatting Forecast to Pandas....")
+            forecast = pandas.DataFrame(data=dataframe_cols)
+            forecast = forecast.set_index('timestamp')
+            predictions_dict[meta_data] = forecast
+            
+            current_label_num += 1
+            limit_iterator_num += 1
+        except ValueError:
+            print("Too many NaN values........Skipping this label")
+            limit_iterator_num -= 1
+        pass
+
+    return predictions_dict
 
 if __name__ == "__main__":
 
