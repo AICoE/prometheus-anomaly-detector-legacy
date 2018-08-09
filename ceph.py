@@ -70,3 +70,29 @@ class CephConnect:
                 print("Stored Model not found")
                 model_dict = {}
         return model_dict
+
+    def get_latest_df_dict(self, data_path=None):
+        session = boto3.Session(
+            aws_access_key_id=self.boto_settings['access_key'],
+            aws_secret_access_key=self.boto_settings['secret_key']
+        )
+
+        s3 = session.resource('s3',
+                              endpoint_url=self.boto_settings['object_store_endpoint'],
+                              verify=False)
+        s3_bucket = s3.Bucket(self.boto_settings['object_store'])
+
+        try:
+            object_list = [obj for obj in s3_bucket.objects.filter(Prefix=str(data_path))]
+            latest_object = object_list[0]
+            for obj in object_list:
+                if int(obj.key[-16:-4]) > int(latest_object.key[-16:-4]):
+                    latest_object = obj
+            received_data = latest_object.get()['Body'].read()
+            data_dict = pickle.loads(bz2.decompress(received_data))
+        except botocore.exceptions.ClientError as exc:
+            if exc.response['Error']['Code'] in ('404', 'NoSuchKey'):
+                # if no data found in ceph, return an empty model dictionary
+                print("Stored Data not found")
+                data_dict = {}
+        return data_dict

@@ -41,7 +41,21 @@ data_size = str(os.getenv('DATA_SIZE','1d'))
 
 train_schedule = int(os.getenv('TRAINING_REPEAT_HOURS',24))
 
-data_dict = {}
+if str(os.getenv('GET_OLDER_DATA',"True")) in ["True", "true", "1", "y"]:
+    include_older_data = True
+    pass
+else:
+    include_older_data = False
+
+
+if include_older_data:
+    print("Collecting previously stored data.........")
+    data_dict = cp().get_latest_df_dict(data_storage_path)
+    pass
+else:
+    data_dict = {}
+    pass
+
 predictions_dict = {}
 current_metric_metadata = ""
 # iteration = 0
