@@ -12,7 +12,7 @@ from prometheus_client import CollectorRegistry, generate_latest, REGISTRY, Coun
 from prometheus import Prometheus
 from model import *
 from ceph import CephConnect as cp
-
+from ast import literal_eval
 # Scheduling stuff
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -34,14 +34,20 @@ print("Using Metric {}.".format(metric_name))
 data_storage_path = "Data_Frames" + "/" + url[8:] + "/"+ metric_name + "/" + "prophet_model" + ".pkl"
 
 # Chunk size, download the complete data, but in smaller chunks, should be less than or equal to DATA_SIZE
-chunk_size = str(os.getenv('CHUNK_SIZE','1d'))
+chunk_size = str(os.getenv('CHUNK_SIZE','1h'))
 
 # Net data size to scrape from prometheus
-data_size = str(os.getenv('DATA_SIZE','1d'))
+data_size = str(os.getenv('DATA_SIZE','1h'))
 
 train_schedule = int(os.getenv('TRAINING_REPEAT_HOURS',24))
 
-if str(os.getenv('GET_OLDER_DATA',"True")) in ["True", "true", "1", "y"]:
+
+TRUE_LIST = ["True", "true", "1", "y"]
+
+store_intermediate_data = os.getenv("STORE_INTERMEDIATE_DATA", "False") # Setting this to true will store intermediate dataframes to ceph
+
+
+if str(os.getenv('GET_OLDER_DATA',"False")) in TRUE_LIST:
     include_older_data = True
     pass
 else:
@@ -56,14 +62,23 @@ else:
     data_dict = {}
     pass
 
-predictions_dict = {}
+default_label_config = "{'__name__': 'kubelet_docker_operations_latency_microseconds', 'beta_kubernetes_io_arch': 'amd64', 'beta_kubernetes_io_os': 'linux', 'instance': 'cpt-0001.datahub.prod.upshift.rdu2.redhat.com', 'job': 'kubernetes-nodes', 'kubernetes_io_hostname': 'cpt-0001.datahub.prod.upshift.rdu2.redhat.com', 'node_role_kubernetes_io_compute': 'true', 'operation_type': 'create_container', 'provider': 'rhos', 'quantile': '0.5', 'region': 'compute', 'size': 'small'}"
+fixed_label_config = str(os.getenv("LABEL_CONFIG", default_label_config))
+fixed_label_config_dict = literal_eval(fixed_label_config) # # TODO: Add more error handling here
+
+
+print([label for label in fixed_label_config_dict if label != "__name__"])
+predictions_dict_prophet = {}
+predictions_dict_fourier = {}
 current_metric_metadata = ""
+current_metric_metadata_dict = {}
 # iteration = 0
 def job(current_time):
     # TODO: Replace this function with model training function and set up the correct IntervalTrigger time
-    global data_dict, predictions_dict, current_metric_metadata, data_window, url, token, chunk_size, data_size
+    global data_dict, predictions_dict_prophet, predictions_dict_fourier, current_metric_metadata, current_metric_metadata_dict, data_window, url, token, chunk_size, data_size, TRUE_LIST, store_intermediate_data
     global data
     # iteration += 1
+    start_time = time.time()
     prom = Prometheus(url=url, token=token, data_chunk=chunk_size, stored_data=data_size)
     metric = prom.get_metric(metric_name)
     print("metric collected.")
@@ -74,34 +89,52 @@ def job(current_time):
     # Metric Json is converted to a shaped dataframe
     data_dict = get_df_from_json(metric, data_dict, data_window) # This dictionary contains all the sub-labels as keys and their data as Pandas DataFrames
     del metric, prom
-    print("DataFrame stored at: ",cp().store_data(metric_name, pickle.dumps(data_dict), (data_storage_path + str(datetime.now().strftime('%Y%m%d%H%M')))))
-    for x in data_dict:
-        # if (len(data_dict[x].dropna()) > 100):
-        print(data_dict[x].head(5))
-        print(data_dict[x].tail(5))
-        # data_dict[x] = data_dict[x].reset_index(drop = True).sort_values(by=['ds'])
-        # print(data_dict[x].head(5))
-        # print(data_dict[x].tail(5))
-        break
-        pass
 
-    predictions_dict = predict_metrics_fourier(data_dict)
-    for key in predictions_dict:
-        current_metric_metadata = key
-        data = predictions_dict[key]
-        break # use the first predicted metric
-        # print(len(data[~data.index.duplicated()]))
+    if str(store_intermediate_data) == TRUE_LIST:
+        print("DataFrame stored at: ",cp().store_data(metric_name, pickle.dumps(data_dict), (data_storage_path + str(datetime.now().strftime('%Y%m%d%H%M')))))
         pass
+    # for x in data_dict:
+    #     # if (len(data_dict[x].dropna()) > 100):
+    #     print(data_dict[x].head(5))
+    #     print(data_dict[x].tail(5))
+    #     # data_dict[x] = data_dict[x].reset_index(drop = True).sort_values(by=['ds'])
+    #     # print(data_dict[x].head(5))
+    #     # print(data_dict[x].tail(5))
+    #     break
+    #     pass
+
+    if fixed_label_config:
+        single_label_data_dict = {}
+        single_label_data_dict[fixed_label_config] = data_dict[fixed_label_config]
+        current_metric_metadata = fixed_label_config
+        current_metric_metadata_dict = literal_eval(fixed_label_config)
+        del current_metric_metadata_dict["__name__"]
+        print("Using the default label config")
+        predictions_dict_prophet = predict_metrics(single_label_data_dict)
+        predictions_dict_fourier = predict_metrics_fourier(single_label_data_dict)
+        pass
+    else:
+        predictions_dict_prophet = predict_metrics(data_dict)
+        predictions_dict_fourier = predict_metrics_fourier(data_dict)
+
+    # for key in predictions_dict_prophet:
+    #     current_metric_metadata = key
+    #     data = predictions_dict_prophet[key]
+    #     break # use the first predicted metric
+    #     # print(len(data[~data.index.duplicated()]))
+    #     pass
     # print("Data Head: \n",data.head(5))
     # print("Data Tail: \n",data.tail(5))
     # data['timestamp'] = data['ds']
 
     # data = data.set_index(data['timestamp'])
-    data = data[~data.index.duplicated()]
-    # data = data[]
-    data = data.sort_index()
+    # data = data[~data.index.duplicated()]
+    # # data = data[]
+    # data = data.sort_index()
     # data = data[:datetime.now()]
     # TODO: Trigger Data Pruning here
+    function_run_time = time.time() - start_time
+    print("Total time taken to train was: {} seconds.".format(function_run_time))
     pass
 
 job(datetime.now())
@@ -135,7 +168,15 @@ atexit.register(lambda: scheduler.shutdown())
 # data = data[:datetime.now()]
 
 #A gauge set for the predicted values
-PREDICTED_VALUES = Gauge('predicted_values', 'Forecasted values from Prophet', ['value_type'])
+# PREDICTED_VALUES = Gauge('predicted_values', 'Forecasted values from Prophet', [label for label in fixed_label_config_dict if label != "__name__"], [fixed_label_config_dict[label] for label in fixed_label_config_dict if label != "__name__"])
+print("current_metric_metadata_dict: ", current_metric_metadata_dict)
+PREDICTED_VALUES_PROPHET = Gauge('predicted_values_prophet', 'Forecasted value from Prophet model', list(current_metric_metadata_dict.keys()))
+PREDICTED_VALUES_PROPHET_UPPER = Gauge('predicted_values_prophet_yhat_upper', 'Forecasted value upper bound from Prophet model', list(current_metric_metadata_dict.keys()))
+PREDICTED_VALUES_PROPHET_LOWER = Gauge('predicted_values_prophet_yhat_lower', 'Forecasted value lower bound from Prophet model', list(current_metric_metadata_dict.keys()))
+
+PREDICTED_VALUES_FOURIER = Gauge('predicted_values_fourier', 'Forecasted value from Fourier Transform model', list(current_metric_metadata_dict.keys()))
+PREDICTED_VALUES_FOURIER_UPPER = Gauge('predicted_values_fourier_yhat_upper', 'Forecasted value upper bound from Fourier Transform model', list(current_metric_metadata_dict.keys()))
+PREDICTED_VALUES_FOURIER_LOWER = Gauge('predicted_values_fourier_yhat_lower', 'Forecasted value lower bound from Fourier Transform model', list(current_metric_metadata_dict.keys()))
 
 # A counter to count the total number of HTTP requests
 REQUESTS = Counter('http_requests_total', 'Total HTTP Requests (count)', ['method', 'endpoint', 'status_code'])
@@ -179,14 +220,37 @@ def countpkg():
 @app.route('/metrics')
 def metrics():
     #Find the index matching with the current timestamp
-    global data
-    index = data.index.get_loc(datetime.now(), method='nearest')
-    print("The current time is: ",datetime.now())
-    print("The matching index found:", index, "nearest row item is: \n", data.iloc[[index]])
+    global predictions_dict_prophet, current_metric_metadata, current_metric_metadata_dict
+    for metadata in predictions_dict_prophet:
+        # data = predictions_dict_prophet[metadata]
+        index = predictions_dict_prophet[metadata].index.get_loc(datetime.now(), method='nearest')
+
+        current_metric_metadata = metadata
+
+        print("The current time is: ",datetime.now())
+        print("The matching index found:", index, "nearest row item is: \n", predictions_dict_prophet[metadata].iloc[[index]])
+
+        current_metric_metadata_dict = literal_eval(metadata)
+        del current_metric_metadata_dict["__name__"]
+
+        PREDICTED_VALUES_PROPHET.labels(**current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat'][index])
+        PREDICTED_VALUES_PROPHET_UPPER.labels(**current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_upper'][index])
+        PREDICTED_VALUES_PROPHET_LOWER.labels(**current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_lower'][index])
+
+        PREDICTED_VALUES_FOURIER.labels(**current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat'][index])
+        PREDICTED_VALUES_FOURIER_UPPER.labels(**current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_upper'][index])
+        PREDICTED_VALUES_FOURIER_LOWER.labels(**current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_lower'][index])
+
+        pass
+
+
+
+
     #Set the Gauge with the predicted values of the index found
-    PREDICTED_VALUES.labels(value_type=current_metric_metadata + 'yhat').set(data['yhat'][index])
-    PREDICTED_VALUES.labels(value_type='yhat_upper').set(data['yhat_upper'][index])
-    PREDICTED_VALUES.labels(value_type='yhat_lower').set(data['yhat_lower'][index])
+
+    # del fixed_label_config_dict["__name__"]
+    # print((test_label_dict))
+
     return generate_latest(REGISTRY)
 
 @app.route('/prometheus')
