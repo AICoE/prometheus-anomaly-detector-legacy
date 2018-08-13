@@ -60,7 +60,6 @@ fixed_label_config = str(os.getenv("LABEL_CONFIG", default_label_config))
 fixed_label_config_dict = literal_eval(fixed_label_config) # # TODO: Add more error handling here
 
 
-print([label for label in fixed_label_config_dict if label != "__name__"])
 predictions_dict_prophet = {}
 predictions_dict_fourier = {}
 current_metric_metadata = ""
@@ -83,53 +82,38 @@ def job(current_time):
     data_dict = get_df_from_json(metric, data_dict, data_window) # This dictionary contains all the sub-labels as keys and their data as Pandas DataFrames
     del metric, prom
 
-    if str(store_intermediate_data) == TRUE_LIST:
+    if str(store_intermediate_data) in TRUE_LIST:
         print("DataFrame stored at: ",cp().store_data(metric_name, pickle.dumps(data_dict), (data_storage_path + str(datetime.now().strftime('%Y%m%d%H%M')))))
         pass
-    for x in data_dict:
-        # if (len(data_dict[x].dropna()) > 100):
-        print(data_dict[x].head(5))
-        print(data_dict[x].tail(5))
-        # data_dict[x] = data_dict[x].reset_index(drop = True).sort_values(by=['ds'])
-        # print(data_dict[x].head(5))
-        # print(data_dict[x].tail(5))
-        break
-        pass
 
-    if fixed_label_config:
+
+
+    if fixed_label_config: #If a label config has been specified
         single_label_data_dict = {}
         single_label_data_dict[fixed_label_config] = data_dict[fixed_label_config]
         current_metric_metadata = fixed_label_config
         current_metric_metadata_dict = literal_eval(fixed_label_config)
-        # del current_metric_metadata_dict["__name__"]
+
+        print(data_dict[fixed_label_config].head(5))
+        print(data_dict[fixed_label_config].tail(5))
+
         print("Using the default label config")
         predictions_dict_prophet = predict_metrics(single_label_data_dict)
         # print(single_label_data_dict)
         predictions_dict_fourier = predict_metrics_fourier(single_label_data_dict)
         pass
     else:
+        for x in data_dict:
+            print(data_dict[x].head(5))
+            print(data_dict[x].tail(5))
+            break
+            pass
         predictions_dict_prophet = predict_metrics(data_dict)
         predictions_dict_fourier = predict_metrics_fourier(data_dict)
 
-    # print(predictions_dict_fourier)
-
-    # for key in predictions_dict_prophet:
-    #     current_metric_metadata = key
-    #     data = predictions_dict_prophet[key]
-    #     break # use the first predicted metric
-    #     # print(len(data[~data.index.duplicated()]))
-    #     pass
-    # print("Data Head: \n",data.head(5))
-    # print("Data Tail: \n",data.tail(5))
-    # data['timestamp'] = data['ds']
-
-    # data = data.set_index(data['timestamp'])
-    # data = data[~data.index.duplicated()]
-    # # data = data[]
-    # data = data.sort_index()
-    # data = data[:datetime.now()]
     # TODO: Trigger Data Pruning here
     function_run_time = time.time() - start_time
+
     print("Total time taken to train was: {} seconds.".format(function_run_time))
     pass
 
@@ -140,31 +124,17 @@ scheduler = BackgroundScheduler()
 scheduler.start()
 scheduler.add_job(
     func=lambda: job(datetime.now()),
-    trigger=IntervalTrigger(hours=train_schedule),# change this to a different interval
+    trigger=IntervalTrigger(hours=train_schedule),
     id='training_job',
     name='Train Prophet model every day regularly',
     replace_existing=True)
+
 # Shut down the scheduler when exiting the app
 atexit.register(lambda: scheduler.shutdown())
 
-#Parsing the required arguments
-# parser = argparse.ArgumentParser(description='Service metrics')
-# parser.add_argument('--file', type=str, help='The filename of predicted values to read from', default="predictions.json")
-#
-# args = parser.parse_args()
-# #Read the JSON file
-# data = pandas.read_json(args.file)
-# print(data.head())
 
-# modify the DataFrame
-# data = data.set_index(data['timestamp'])
-# data = data[~data.index.duplicated()]
-# # data = data[]
-# data = data.sort_index()
-# data = data[:datetime.now()]
 
-#A gauge set for the predicted values
-# PREDICTED_VALUES = Gauge('predicted_values', 'Forecasted values from Prophet', [label for label in fixed_label_config_dict if label != "__name__"], [fixed_label_config_dict[label] for label in fixed_label_config_dict if label != "__name__"])
+#Multiple gauges set for the predicted values
 print("current_metric_metadata_dict: ", current_metric_metadata_dict)
 PREDICTED_VALUES_PROPHET = Gauge('predicted_values_prophet', 'Forecasted value from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
 PREDICTED_VALUES_PROPHET_UPPER = Gauge('predicted_values_prophet_yhat_upper', 'Forecasted value upper bound from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
@@ -215,10 +185,11 @@ def countpkg():
 
 @app.route('/metrics')
 def metrics():
-    #Find the index matching with the current timestamp
+
     global predictions_dict_prophet, predictions_dict_fourier, current_metric_metadata, current_metric_metadata_dict
     for metadata in predictions_dict_prophet:
-        # data = predictions_dict_prophet[metadata]
+
+        #Find the index matching with the current timestamp
         index_prophet = predictions_dict_prophet[metadata].index.get_loc(datetime.now(), method='nearest')
         index_fourier = predictions_dict_fourier[metadata].index.get_loc(datetime.now(), method='nearest')
         current_metric_metadata = metadata
@@ -226,17 +197,19 @@ def metrics():
         print("The current time is: ",datetime.now())
         print("The matching index for Prophet model found was: ", index_prophet, "nearest row item is: \n", predictions_dict_prophet[metadata].iloc[[index_prophet]])
         print("The matching index for Fourier Transform found was: ", index_fourier, "nearest row item is: \n", predictions_dict_fourier[metadata].iloc[[index_fourier]])
-        # print("metadata str: ", metadata)
+
         current_metric_metadata_dict = literal_eval(metadata)
+
         temp_current_metric_metadata_dict = current_metric_metadata_dict.copy()
-        # print("Current metadata :", temp_current_metric_metadata_dict)
+
         del temp_current_metric_metadata_dict["__name__"]
-        # print(predictions_dict_prophet[metadata].head())
-        # print(predictions_dict_fourier)
+
+        # Update the metric values for prophet model
         PREDICTED_VALUES_PROPHET.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat'][index_prophet])
         PREDICTED_VALUES_PROPHET_UPPER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_upper'][index_prophet])
         PREDICTED_VALUES_PROPHET_LOWER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_lower'][index_prophet])
 
+        # Update the metric values for fourier transform model
         PREDICTED_VALUES_FOURIER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat'][index_fourier])
         PREDICTED_VALUES_FOURIER_UPPER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_upper'][index_fourier])
         PREDICTED_VALUES_FOURIER_LOWER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_lower'][index_fourier])

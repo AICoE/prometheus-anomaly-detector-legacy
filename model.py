@@ -76,13 +76,13 @@ def get_df_from_json(metric, metric_dict_pd={}, data_window=5):
         # break
     return metric_dict_pd
 
-def predict_metrics(pd_dict, limit_labels=1, prediction_range=1440):
+def predict_metrics(pd_dict, prediction_range=1440):
     '''
     This Function takes input a dictionary of Pandas DataFrames, trains the Prophet model for each dataframe and returns a dictionary of predictions.
     '''
 
     total_label_num = len(pd_dict)
-    LABEL_LIMIT = limit_labels
+    # LABEL_LIMIT = limit_labels
     PREDICT_DURATION = prediction_range
 
     current_label_num = 0
@@ -92,12 +92,6 @@ def predict_metrics(pd_dict, limit_labels=1, prediction_range=1440):
 
     for meta_data in pd_dict:
         try:
-            if LABEL_LIMIT: # Don't run on all the labels
-                if limit_iterator_num > int(LABEL_LIMIT):
-                    break
-                    pass
-                pass
-
             current_label_num += 1
             limit_iterator_num += 1
 
@@ -112,16 +106,8 @@ def predict_metrics(pd_dict, limit_labels=1, prediction_range=1440):
             data['ds'] = pandas.to_datetime(data['ds'], unit='s')
 
             train_frame = data
-            # train_frame = data[0 : int(0.7*len(data))]
-            # test_frame = data[int(0.7*len(data)) : ]
-
-            # print(len(train_frame))
-            # print(train_frame.head())
 
             # Prophet Modelling begins here
-
-            # if meta_data not in model_dict: # initialize a model if not initialized in the model_dict
-                # print("initializing new model for metadata {}....".format(meta_data))
             m = Prophet(daily_seasonality = True, weekly_seasonality=True)
 
             print("Fitting the train_frame")
@@ -129,26 +115,13 @@ def predict_metrics(pd_dict, limit_labels=1, prediction_range=1440):
 
             future = m.make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
 
-
-            # try:
-            #     future = m.make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
-            # except Exception as e:
-            #     if str(e) == "Model must be fit before this can be used.":
-            #         m.fit(train_frame)
-            #         future = m.make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
-            #         pass
-            #     else:
-            #         raise e
-            # future = m.make_future_dataframe(periods=int(len(test_frame) * 1.1),freq="1MIN")
             forecast = m.predict(future)
-            # print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']])
 
             # To Plot
-            # fig1 = model_dict[meta_data].plot(forecast)
+            # fig1 = m.plot(forecast)
             #
-            # fig2 = model_dict[meta_data].plot_components(forecast)
+            # fig2 = m.plot_components(forecast)
             forecast['timestamp'] = forecast['ds']
-            # forecast['values'] = data['y']
             forecast = forecast[['timestamp','yhat','yhat_lower','yhat_upper']]
             forecast = forecast.set_index('timestamp')
 
@@ -158,10 +131,12 @@ def predict_metrics(pd_dict, limit_labels=1, prediction_range=1440):
             # forecast.plot()
             # plt.legend()
             # plt.show()
-        except ValueError:
-            print("Too many NaN values........Skipping this label")
-            limit_iterator_num -= 1
-
+        except ValueError as exception:
+            if str(exception) == "ValueError: Dataframe has less than 2 non-NaN rows.":
+                print("Too many NaN values........Skipping this label")
+                limit_iterator_num -= 1
+            else:
+                raise exception
         pass
 
     return predictions_dict
@@ -186,9 +161,8 @@ def fourierExtrapolation(x, n_predict, n_harm):
         restored_sig += ampli * np.cos(2 * np.pi * f[i] * t + phase)
     return restored_sig + p[0] * t
 
-def predict_metrics_fourier(pd_dict, limit_labels=1, prediction_range=1440):
+def predict_metrics_fourier(pd_dict, prediction_range=1440):
     total_label_num = len(pd_dict)
-    LABEL_LIMIT = limit_labels
     PREDICT_DURATION = prediction_range
 
     current_label_num = 0
@@ -198,11 +172,6 @@ def predict_metrics_fourier(pd_dict, limit_labels=1, prediction_range=1440):
 
     for meta_data in pd_dict:
         try:
-            if LABEL_LIMIT: # Don't run on all the labels
-                if limit_iterator_num > int(LABEL_LIMIT):
-                    break
-                    pass
-                pass
             data = pd_dict[meta_data]
             data['ds'] = pandas.to_datetime(data['ds'], unit='s')
             vals = np.array(data["y"].tolist())
@@ -215,7 +184,7 @@ def predict_metrics_fourier(pd_dict, limit_labels=1, prediction_range=1440):
 
             # find most recent timestamp from original data and extrapolate new
             # timestamps
-            print("Creating Dummpy Timestamps.....")
+            print("Creating Dummy Timestamps.....")
             min_time = min(data["ds"])
             dataframe_cols["timestamp"] = pandas.date_range(min_time, periods=len(forecast_vals), freq='min')
 
@@ -234,9 +203,12 @@ def predict_metrics_fourier(pd_dict, limit_labels=1, prediction_range=1440):
 
             current_label_num += 1
             limit_iterator_num += 1
-        except ValueError:
-            print("Too many NaN values........Skipping this label")
-            limit_iterator_num -= 1
+        except ValueError as exception:
+            if str(exception) == "ValueError: Dataframe has less than 2 non-NaN rows.":
+                print("Too many NaN values........Skipping this label")
+                limit_iterator_num -= 1
+            else:
+                raise exception
         pass
 
     return predictions_dict
@@ -288,125 +260,4 @@ if __name__ == "__main__":
     predictions = predict_metrics(pd_dict)
     for x in predictions:
         print(predictions[x].head())
-
     pass
-# session = cp()
-# model_dict = session.get_model_dict(model_storage_path) # Dictionary where all the models will be stored
-#
-# current_label_num = 0
-# limit_iterator_num = 0
-# total_label_num = len(pd_dict)
-# print("Numer of labels: {} \n".format(total_label_num))
-#
-# for meta_data in pd_dict:
-#     try:
-#         if LABEL_LIMIT: # Don't run on all the labels
-#             if limit_iterator_num > int(LABEL_LIMIT):
-#                 break
-#                 pass
-#             pass
-#
-#         current_label_num += 1
-#         limit_iterator_num += 1
-#
-#         print("Training Label {}/{}".format(current_label_num,total_label_num))
-#         data = pd_dict[meta_data]
-#
-#         print("----------------------------------\n")
-#         print(meta_data)
-#         print("Number of Data Points: {}".format(len(pd_dict[meta_data])))
-#         print("----------------------------------\n")
-#
-#         data['ds'] = pandas.to_datetime(data['ds'], unit='s')
-#
-#         train_frame = data
-#         # train_frame = data[0 : int(0.7*len(data))]
-#         # test_frame = data[int(0.7*len(data)) : ]
-#
-#         # print(len(train_frame))
-#         # print(train_frame.head())
-#
-#         # Prophet Modelling begins here
-#
-#         if meta_data not in model_dict: # initialize a model if not initialized in the model_dict
-#             print("initializing new model for metadata {}....".format(meta_data))
-#             model_dict[meta_data] = Prophet(daily_seasonality = True, weekly_seasonality=True)
-#
-#             print("Fitting the train_frame")
-#             model_dict[meta_data].fit(train_frame)
-#             pass
-#
-#
-#         try:
-#             future = model_dict[meta_data].make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
-#         except Exception as e:
-#             if str(e) == "Model must be fit before this can be used.":
-#                 model_dict[meta_data].fit(train_frame)
-#                 future = model_dict[meta_data].make_future_dataframe(periods=int(PREDICT_DURATION),freq="1MIN")
-#                 pass
-#             else:
-#                 raise e
-#         # future = m.make_future_dataframe(periods=int(len(test_frame) * 1.1),freq="1MIN")
-#         forecast = model_dict[meta_data].predict(future)
-#         # print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']])
-#
-#         # To Plot
-#         # fig1 = model_dict[meta_data].plot(forecast)
-#         #
-#         # fig2 = model_dict[meta_data].plot_components(forecast)
-#         forecast['timestamp'] = forecast['ds']
-#         forecast['values'] = data['y']
-#         forecast = forecast[['timestamp','values','yhat','yhat_lower','yhat_upper']]
-#         forecast = forecast.set_index('timestamp')
-#
-#         # forecast.plot()
-#         # plt.legend()
-#         # plt.show()
-#     except ValueError:
-#         print("Too many NaN values........Skipping this label")
-#         limit_iterator_num -= 1
-#
-#     pass
-#
-#
-# # output['values'] = forecast[['timestamp','yhat']].to_json()
-# # output_json = json.dumps(output)
-#
-# #
-# file_name = 'prophet_model.pkl'
-# file = open(file_name, 'wb')
-# pickle.dump(model_dict, file)
-# file.close()
-#
-# # Store Forecast to CEPH
-# print(session.store_data(name = metric_name,
-#                         object_path = model_storage_path,
-#                         values = pickle.dumps(model_dict)))
-
-
-
-
-# forecast.to_json()
-# break
-
-
-#     print(len(metric_dict[key]))
-#     break
-#     pass
-# test_df.set_index('timestamp')
-# test_df['timestamp'] = pandas.to_datetime(test_df['timestamp'], unit='s')
-# print(test_df.head(100))
-
-# pd_metric = pandas.DataFrame.from_dict(metric_dict)
-
-# print(pd_metric.info)
-# for x in metric:
-#     print((x['metric']).sort())
-#     pass
-# print(metric[0])
-# print("----------------------------------\n")
-# pd_metric = pandas.read_json(metric)
-# print(pd_metric.info())
-# # for x in (pd_metric['values']):
-#     # print(x)
-#     # pass
