@@ -104,11 +104,14 @@ def job(current_time):
         # del current_metric_metadata_dict["__name__"]
         print("Using the default label config")
         predictions_dict_prophet = predict_metrics(single_label_data_dict)
+        # print(single_label_data_dict)
         predictions_dict_fourier = predict_metrics_fourier(single_label_data_dict)
         pass
     else:
         predictions_dict_prophet = predict_metrics(data_dict)
         predictions_dict_fourier = predict_metrics_fourier(data_dict)
+
+    # print(predictions_dict_fourier)
 
     # for key in predictions_dict_prophet:
     #     current_metric_metadata = key
@@ -213,27 +216,30 @@ def countpkg():
 @app.route('/metrics')
 def metrics():
     #Find the index matching with the current timestamp
-    global predictions_dict_prophet, current_metric_metadata, current_metric_metadata_dict
+    global predictions_dict_prophet, predictions_dict_fourier, current_metric_metadata, current_metric_metadata_dict
     for metadata in predictions_dict_prophet:
         # data = predictions_dict_prophet[metadata]
-        index = predictions_dict_prophet[metadata].index.get_loc(datetime.now(), method='nearest')
-
+        index_prophet = predictions_dict_prophet[metadata].index.get_loc(datetime.now(), method='nearest')
+        index_fourier = predictions_dict_fourier[metadata].index.get_loc(datetime.now(), method='nearest')
         current_metric_metadata = metadata
 
         print("The current time is: ",datetime.now())
-        print("The matching index found:", index, "nearest row item is: \n", predictions_dict_prophet[metadata].iloc[[index]])
-
+        print("The matching index for Prophet model found was: ", index_prophet, "nearest row item is: \n", predictions_dict_prophet[metadata].iloc[[index_prophet]])
+        print("The matching index for Fourier Transform found was: ", index_fourier, "nearest row item is: \n", predictions_dict_fourier[metadata].iloc[[index_fourier]])
+        # print("metadata str: ", metadata)
         current_metric_metadata_dict = literal_eval(metadata)
         temp_current_metric_metadata_dict = current_metric_metadata_dict.copy()
+        # print("Current metadata :", temp_current_metric_metadata_dict)
         del temp_current_metric_metadata_dict["__name__"]
+        # print(predictions_dict_prophet[metadata].head())
+        # print(predictions_dict_fourier)
+        PREDICTED_VALUES_PROPHET.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat'][index_prophet])
+        PREDICTED_VALUES_PROPHET_UPPER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_upper'][index_prophet])
+        PREDICTED_VALUES_PROPHET_LOWER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_lower'][index_prophet])
 
-        PREDICTED_VALUES_PROPHET.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat'][index])
-        PREDICTED_VALUES_PROPHET_UPPER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_upper'][index])
-        PREDICTED_VALUES_PROPHET_LOWER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_lower'][index])
-
-        PREDICTED_VALUES_FOURIER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat'][index])
-        PREDICTED_VALUES_FOURIER_UPPER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_upper'][index])
-        PREDICTED_VALUES_FOURIER_LOWER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_lower'][index])
+        PREDICTED_VALUES_FOURIER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat'][index_fourier])
+        PREDICTED_VALUES_FOURIER_UPPER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_upper'][index_fourier])
+        PREDICTED_VALUES_FOURIER_LOWER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_lower'][index_fourier])
 
         pass
 

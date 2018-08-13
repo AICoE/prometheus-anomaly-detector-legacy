@@ -177,7 +177,7 @@ def fourierExtrapolation(x, n_predict, n_harm):
     indexes = np.arange(n).tolist()
     # sort indexes by frequency, lower -> higher
     indexes.sort(key = lambda i:np.absolute(f[i]))
- 
+
     t = np.arange(0, n + n_predict)
     restored_sig = np.zeros(t.size)
     for i in indexes[:1 + n_harm * 2]:
@@ -206,32 +206,32 @@ def predict_metrics_fourier(pd_dict, limit_labels=1, prediction_range=1440):
             data = pd_dict[meta_data]
             data['ds'] = pandas.to_datetime(data['ds'], unit='s')
             vals = np.array(data["y"].tolist())
-            
+
             # run model and trim forecast to only newest values
             print("Training Model......")
             forecast_vals = fourierExtrapolation(vals, prediction_range, int(len(vals)/3))
             dataframe_cols = {}
             dataframe_cols["yhat"] = np.array(forecast_vals)
-            
+
             # find most recent timestamp from original data and extrapolate new
             # timestamps
             print("Creating Dummpy Timestamps.....")
             min_time = min(data["ds"])
-            dataframe_cols["timestamp"] = pandas.date_range(min_time, periods=len(forecast_vals), freq='M')
-            
+            dataframe_cols["timestamp"] = pandas.date_range(min_time, periods=len(forecast_vals), freq='min')
+
             # create dummy upper and lower bounds
             print("Computing Bounds....")
             upper_bound = np.mean(forecast_vals) + np.std(forecast_vals)
             lower_bound = np.mean(forecast_vals) - np.std(forecast_vals)
             dataframe_cols["yhat_upper"] = np.full((len(forecast_vals)), upper_bound)
             dataframe_cols["yhat_lower"] = np.full((len(forecast_vals)), lower_bound)
-            
+
             # create series and index into precictions_dict
             print("Formatting Forecast to Pandas....")
             forecast = pandas.DataFrame(data=dataframe_cols)
             forecast = forecast.set_index('timestamp')
             predictions_dict[meta_data] = forecast
-            
+
             current_label_num += 1
             limit_iterator_num += 1
         except ValueError:
