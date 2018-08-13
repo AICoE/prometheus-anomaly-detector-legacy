@@ -34,12 +34,12 @@ print("Using Metric {}.".format(metric_name))
 data_storage_path = "Data_Frames" + "/" + url[8:] + "/"+ metric_name + "/" + "prophet_model" + ".pkl"
 
 # Chunk size, download the complete data, but in smaller chunks, should be less than or equal to DATA_SIZE
-chunk_size = str(os.getenv('CHUNK_SIZE','1h'))
+chunk_size = str(os.getenv('CHUNK_SIZE','1d'))
 
 # Net data size to scrape from prometheus
-data_size = str(os.getenv('DATA_SIZE','1h'))
+data_size = str(os.getenv('DATA_SIZE','1d'))
 
-train_schedule = int(os.getenv('TRAINING_REPEAT_HOURS',24))
+train_schedule = int(os.getenv('TRAINING_REPEAT_HOURS',6))
 
 
 TRUE_LIST = ["True", "true", "1", "y"]
@@ -47,20 +47,13 @@ TRUE_LIST = ["True", "true", "1", "y"]
 store_intermediate_data = os.getenv("STORE_INTERMEDIATE_DATA", "False") # Setting this to true will store intermediate dataframes to ceph
 
 
-if str(os.getenv('GET_OLDER_DATA',"False")) in TRUE_LIST:
-    include_older_data = True
-    pass
-else:
-    include_older_data = False
-
-
-if include_older_data:
+if str(os.getenv('GET_OLDER_DATA',"True")) in TRUE_LIST:
     print("Collecting previously stored data.........")
     data_dict = cp().get_latest_df_dict(data_storage_path)
     pass
 else:
     data_dict = {}
-    pass
+
 
 default_label_config = "{'__name__': 'kubelet_docker_operations_latency_microseconds', 'beta_kubernetes_io_arch': 'amd64', 'beta_kubernetes_io_os': 'linux', 'instance': 'cpt-0001.datahub.prod.upshift.rdu2.redhat.com', 'job': 'kubernetes-nodes', 'kubernetes_io_hostname': 'cpt-0001.datahub.prod.upshift.rdu2.redhat.com', 'node_role_kubernetes_io_compute': 'true', 'operation_type': 'create_container', 'provider': 'rhos', 'quantile': '0.5', 'region': 'compute', 'size': 'small'}"
 fixed_label_config = str(os.getenv("LABEL_CONFIG", default_label_config))
