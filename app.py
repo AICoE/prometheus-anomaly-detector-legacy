@@ -101,7 +101,7 @@ def job(current_time):
         single_label_data_dict[fixed_label_config] = data_dict[fixed_label_config]
         current_metric_metadata = fixed_label_config
         current_metric_metadata_dict = literal_eval(fixed_label_config)
-        del current_metric_metadata_dict["__name__"]
+        # del current_metric_metadata_dict["__name__"]
         print("Using the default label config")
         predictions_dict_prophet = predict_metrics(single_label_data_dict)
         predictions_dict_fourier = predict_metrics_fourier(single_label_data_dict)
@@ -163,13 +163,13 @@ atexit.register(lambda: scheduler.shutdown())
 #A gauge set for the predicted values
 # PREDICTED_VALUES = Gauge('predicted_values', 'Forecasted values from Prophet', [label for label in fixed_label_config_dict if label != "__name__"], [fixed_label_config_dict[label] for label in fixed_label_config_dict if label != "__name__"])
 print("current_metric_metadata_dict: ", current_metric_metadata_dict)
-PREDICTED_VALUES_PROPHET = Gauge('predicted_values_prophet', 'Forecasted value from Prophet model', list(current_metric_metadata_dict.keys()))
-PREDICTED_VALUES_PROPHET_UPPER = Gauge('predicted_values_prophet_yhat_upper', 'Forecasted value upper bound from Prophet model', list(current_metric_metadata_dict.keys()))
-PREDICTED_VALUES_PROPHET_LOWER = Gauge('predicted_values_prophet_yhat_lower', 'Forecasted value lower bound from Prophet model', list(current_metric_metadata_dict.keys()))
+PREDICTED_VALUES_PROPHET = Gauge('predicted_values_prophet', 'Forecasted value from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
+PREDICTED_VALUES_PROPHET_UPPER = Gauge('predicted_values_prophet_yhat_upper', 'Forecasted value upper bound from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
+PREDICTED_VALUES_PROPHET_LOWER = Gauge('predicted_values_prophet_yhat_lower', 'Forecasted value lower bound from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
 
-PREDICTED_VALUES_FOURIER = Gauge('predicted_values_fourier', 'Forecasted value from Fourier Transform model', list(current_metric_metadata_dict.keys()))
-PREDICTED_VALUES_FOURIER_UPPER = Gauge('predicted_values_fourier_yhat_upper', 'Forecasted value upper bound from Fourier Transform model', list(current_metric_metadata_dict.keys()))
-PREDICTED_VALUES_FOURIER_LOWER = Gauge('predicted_values_fourier_yhat_lower', 'Forecasted value lower bound from Fourier Transform model', list(current_metric_metadata_dict.keys()))
+PREDICTED_VALUES_FOURIER = Gauge('predicted_values_fourier', 'Forecasted value from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
+PREDICTED_VALUES_FOURIER_UPPER = Gauge('predicted_values_fourier_yhat_upper', 'Forecasted value upper bound from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
+PREDICTED_VALUES_FOURIER_LOWER = Gauge('predicted_values_fourier_yhat_lower', 'Forecasted value lower bound from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
 
 # A counter to count the total number of HTTP requests
 REQUESTS = Counter('http_requests_total', 'Total HTTP Requests (count)', ['method', 'endpoint', 'status_code'])
@@ -224,15 +224,16 @@ def metrics():
         print("The matching index found:", index, "nearest row item is: \n", predictions_dict_prophet[metadata].iloc[[index]])
 
         current_metric_metadata_dict = literal_eval(metadata)
-        del current_metric_metadata_dict["__name__"]
+        temp_current_metric_metadata_dict = current_metric_metadata_dict.copy()
+        del temp_current_metric_metadata_dict["__name__"]
 
-        PREDICTED_VALUES_PROPHET.labels(**current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat'][index])
-        PREDICTED_VALUES_PROPHET_UPPER.labels(**current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_upper'][index])
-        PREDICTED_VALUES_PROPHET_LOWER.labels(**current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_lower'][index])
+        PREDICTED_VALUES_PROPHET.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat'][index])
+        PREDICTED_VALUES_PROPHET_UPPER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_upper'][index])
+        PREDICTED_VALUES_PROPHET_LOWER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_lower'][index])
 
-        PREDICTED_VALUES_FOURIER.labels(**current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat'][index])
-        PREDICTED_VALUES_FOURIER_UPPER.labels(**current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_upper'][index])
-        PREDICTED_VALUES_FOURIER_LOWER.labels(**current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_lower'][index])
+        PREDICTED_VALUES_FOURIER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat'][index])
+        PREDICTED_VALUES_FOURIER_UPPER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_upper'][index])
+        PREDICTED_VALUES_FOURIER_LOWER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_lower'][index])
 
         pass
 
