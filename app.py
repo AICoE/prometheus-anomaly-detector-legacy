@@ -86,15 +86,15 @@ def job(current_time):
     if str(store_intermediate_data) == TRUE_LIST:
         print("DataFrame stored at: ",cp().store_data(metric_name, pickle.dumps(data_dict), (data_storage_path + str(datetime.now().strftime('%Y%m%d%H%M')))))
         pass
-    # for x in data_dict:
-    #     # if (len(data_dict[x].dropna()) > 100):
-    #     print(data_dict[x].head(5))
-    #     print(data_dict[x].tail(5))
-    #     # data_dict[x] = data_dict[x].reset_index(drop = True).sort_values(by=['ds'])
-    #     # print(data_dict[x].head(5))
-    #     # print(data_dict[x].tail(5))
-    #     break
-    #     pass
+    for x in data_dict:
+        # if (len(data_dict[x].dropna()) > 100):
+        print(data_dict[x].head(5))
+        print(data_dict[x].tail(5))
+        # data_dict[x] = data_dict[x].reset_index(drop = True).sort_values(by=['ds'])
+        # print(data_dict[x].head(5))
+        # print(data_dict[x].tail(5))
+        break
+        pass
 
     if fixed_label_config:
         single_label_data_dict = {}
