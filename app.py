@@ -34,10 +34,10 @@ print("Using Metric {}.".format(metric_name))
 data_storage_path = "Data_Frames" + "/" + url[8:] + "/"+ metric_name + "/" + "prophet_model" + ".pkl"
 
 # Chunk size, download the complete data, but in smaller chunks, should be less than or equal to DATA_SIZE
-chunk_size = str(os.getenv('CHUNK_SIZE','1d'))
+chunk_size = str(os.getenv('CHUNK_SIZE','2d'))
 
 # Net data size to scrape from prometheus
-data_size = str(os.getenv('DATA_SIZE','1d'))
+data_size = str(os.getenv('DATA_SIZE','2d'))
 
 train_schedule = int(os.getenv('TRAINING_REPEAT_HOURS',6))
 
@@ -55,9 +55,14 @@ else:
     data_dict = {}
 
 
-default_label_config = "{'__name__': 'kubelet_docker_operations_latency_microseconds', 'beta_kubernetes_io_arch': 'amd64', 'beta_kubernetes_io_os': 'linux', 'instance': 'cpt-0001.datahub.prod.upshift.rdu2.redhat.com', 'job': 'kubernetes-nodes', 'kubernetes_io_hostname': 'cpt-0001.datahub.prod.upshift.rdu2.redhat.com', 'node_role_kubernetes_io_compute': 'true', 'operation_type': 'create_container', 'provider': 'rhos', 'quantile': '0.5', 'region': 'compute', 'size': 'small'}"
-fixed_label_config = str(os.getenv("LABEL_CONFIG", default_label_config))
-fixed_label_config_dict = literal_eval(fixed_label_config) # # TODO: Add more error handling here
+default_label_config = "{'__name__': 'kubelet_docker_operations_latency_microseconds', 'beta_kubernetes_io_arch': 'amd64', 'beta_kubernetes_io_os': 'linux', 'instance': 'cpt-0001.ocp.prod.upshift.eng.rdu2.redhat.com', 'job': 'kubernetes-nodes', 'kubernetes_io_hostname': 'cpt-0001.ocp.prod.upshift.eng.rdu2.redhat.com', 'operation_type': 'version', 'provider': 'rhos', 'quantile': '0.5', 'region': 'compute', 'size': 'small'} "
+default_label_config = default_label_config +";" + "{'__name__': 'kubelet_docker_operations_latency_microseconds', 'beta_kubernetes_io_arch': 'amd64', 'beta_kubernetes_io_os': 'linux', 'instance': 'cpt-0001.ocp.prod.upshift.eng.rdu2.redhat.com', 'job': 'kubernetes-nodes', 'kubernetes_io_hostname': 'cpt-0001.ocp.prod.upshift.eng.rdu2.redhat.com', 'operation_type': 'version', 'provider': 'rhos', 'quantile': '0.9', 'region': 'compute', 'size': 'small'} "
+
+config_list = []
+fixed_label_config = str(os.getenv("LABEL_CONFIG",default_label_config))
+if fixed_label_config  != "None":
+    config_list = fixed_label_config.split(";") # Separate multiple label configurations using a ';' (semi-colon)
+    fixed_label_config_dict = literal_eval(config_list[0]) # # TODO: Add more error handling here
 
 
 predictions_dict_prophet = {}
@@ -68,7 +73,7 @@ current_metric_metadata_dict = {}
 def job(current_time):
     # TODO: Replace this function with model training function and set up the correct IntervalTrigger time
     global data_dict, predictions_dict_prophet, predictions_dict_fourier, current_metric_metadata, current_metric_metadata_dict, data_window, url, token, chunk_size, data_size, TRUE_LIST, store_intermediate_data
-    global data
+    global data, config_list
     # iteration += 1
     start_time = time.time()
     prom = Prometheus(url=url, token=token, data_chunk=chunk_size, stored_data=data_size)
@@ -87,15 +92,31 @@ def job(current_time):
         pass
 
 
-
-    if fixed_label_config: #If a label config has been specified
+    if fixed_label_config != "None": #If a label config has been specified
         single_label_data_dict = {}
-        single_label_data_dict[fixed_label_config] = data_dict[fixed_label_config]
-        current_metric_metadata = fixed_label_config
-        current_metric_metadata_dict = literal_eval(fixed_label_config)
 
-        print(data_dict[fixed_label_config].head(5))
-        print(data_dict[fixed_label_config].tail(5))
+        # split into multiple label configs
+        existing_config_list = list(data_dict.keys())
+        for config in config_list:
+            config_found = False
+            for existing_config in existing_config_list:
+                if SortedDict(literal_eval(existing_config)) == SortedDict(literal_eval(config)):
+                    single_label_data_dict[existing_config] = data_dict[existing_config]
+                    config_found = True
+                    pass
+            if not config_found:
+                print("Specified Label Configuration {} was not found".format(config))
+                raise KeyError
+                pass
+            # single_label_data_dict[config] = data_dict[config]
+            pass
+
+        # single_label_data_dict[fixed_label_config] = data_dict[fixed_label_config]
+        current_metric_metadata = list(single_label_data_dict.keys())[0]
+        current_metric_metadata_dict = literal_eval(current_metric_metadata)
+
+        print(data_dict[current_metric_metadata].head(5))
+        print(data_dict[current_metric_metadata].tail(5))
 
         print("Using the default label config")
         predictions_dict_prophet = predict_metrics(single_label_data_dict)
