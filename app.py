@@ -153,10 +153,6 @@ IN_PROGRESS = Gauge('http_requests_inprogress', 'Number of in progress HTTP requ
 # A histogram to measure the latency of the HTTP requests
 TIMINGS = Histogram('http_request_duration_seconds', 'HTTP request latency (seconds)')
 
-# A gauge to count the number of packages newly added
-PACKAGES_NEW = Gauge('packages_newly_added', 'Packages newly added')
-
-
 # Standard Flask route stuff.
 @app.route('/')
 # Helper annotation to measure how long a method takes and save as a histogram metric.
@@ -167,21 +163,6 @@ def hello_world():
     REQUESTS.labels(method='GET', endpoint="/", status_code=200).inc()  # Increment the counter
     return 'Hello, World!'
 
-
-@app.route('/hello/<name>')
-@IN_PROGRESS.track_inprogress()
-@TIMINGS.time()
-def index(name):
-    REQUESTS.labels(method='GET', endpoint="/hello/<name>", status_code=200).inc()
-    return render_template_string('<b>Hello {{name}}</b>!', name=name)
-
-@app.route('/packages')
-def countpkg():
-	for i in range(10):
-		packages_added = True
-		if packages_added:
-			PACKAGES_NEW.inc()
-	return render_template_string('Counting packages....')
 
 @app.route('/metrics')
 def metrics():
@@ -217,13 +198,6 @@ def metrics():
         pass
 
     return Response(generate_latest(REGISTRY).decode("utf-8"), content_type='text; charset=utf-8')
-
-@app.route('/prometheus')
-@IN_PROGRESS.track_inprogress()
-@TIMINGS.time()
-def display():
-	REQUESTS.labels(method='GET', endpoint="/metrics", status_code=200).inc()
-	return generate_latest(REGISTRY)
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8080)
