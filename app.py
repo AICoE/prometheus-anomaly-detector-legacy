@@ -195,8 +195,8 @@ def metrics():
         current_metric_metadata = metadata
 
         print("The current time is: ",datetime.now())
-        print("The matching index for Prophet model found was: ", index_prophet, "nearest row item is: \n", predictions_dict_prophet[metadata].iloc[[index_prophet]])
-        print("The matching index for Fourier Transform found was: ", index_fourier, "nearest row item is: \n", predictions_dict_fourier[metadata].iloc[[index_fourier]])
+        print("The matching index for Prophet model found was: \n", predictions_dict_prophet[metadata].iloc[[index_prophet]])
+        print("The matching index for Fourier Transform found was: \n", predictions_dict_fourier[metadata].iloc[[index_fourier]])
 
         current_metric_metadata_dict = literal_eval(metadata)
 
@@ -215,14 +215,6 @@ def metrics():
         PREDICTED_VALUES_FOURIER_LOWER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_lower'][index_fourier])
 
         pass
-
-
-
-
-    #Set the Gauge with the predicted values of the index found
-
-    # del fixed_label_config_dict["__name__"]
-    # print((test_label_dict))
 
     return generate_latest(REGISTRY)
 
