@@ -1,0 +1,209 @@
+apiVersion: v1
+kind: Template
+
+labels:
+  application: train-prometheus
+
+metadata:
+  name: train-prometheus-deployment-template
+
+parameters:
+- description: The name for job
+  from: 'train-prometheus-[a-z0-9]{4}'
+  generate: expression
+  name: APPLICATION_NAME
+  required: true
+- name: URL
+  description: URL of prometheus server
+  required: true
+- name: BEARER_TOKEN
+  description: Bearer Token for accessing prometheus
+  required: true
+- name: BOTO_ACCESS_KEY
+  description: Access key to connect to CEPH endpoint storage (or any similar S3 type storage)
+  required: true
+- name: BOTO_SECRET_KEY
+  description: Secret key to connect to CEPH endpoint storage (or any similar S3 type storage)
+  required: true
+- name: BOTO_OBJECT_STORE
+  description: Bucket Name on CEPH  (or any similar S3 type storage)
+  required: true
+- name: BOTO_STORE_ENDPOINT
+  description: The URL to connect to the CEPH storage (or any similar S3 type storage)
+  required: true
+- name: GIT_URI
+  value: https://github.com/4n4nd/train-prometheus.git
+  required: true
+- name: CHUNK_SIZE
+  description: Size of chunks in which Data is scraped from Prometheus (Should be smaller than DATA_SIZE)
+  required: false
+  value: '1d'
+- name: DATA_SIZE
+  description: Size of data scraped from Prometheus (Should be bigger than CHUNK_SIZE)
+  required: false
+  value: '1d'
+- name: TRAINING_REPEAT_HOURS
+  description: number of hours to repeat model training
+  required: false
+  value: '6'
+- name: DATA_WINDOW_SIZE
+  description: Sliding data window size in days (Number of days worth of past data to use as training data )
+  required: false
+  value: '60'
+- name: STORE_INTERMEDIATE_DATA
+  description: Store Dataframes of cumulated training dataframes to ceph
+  required: false
+  value: 'True'
+- name: GET_OLDER_DATA
+  description: Use the previously stored dataframes in ceph to train the models
+  required: false
+  value: 'True'
+
+objects:
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: ${APPLICATION_NAME}
+    labels:
+      app: ${APPLICATION_NAME}
+  spec:
+    dockerImageRepository: ${APPLICATION_NAME}
+    tags:
+    - name: latest
+    lookupPolicy:
+      local: true
+
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    name: ${APPLICATION_NAME}
+    labels:
+      app: ${APPLICATION_NAME}
+  spec:
+    resources:
+      limits:
+        memory: 4Gi
+        cpu: "2"
+    output:
+      to:
+        kind: ImageStreamTag
+        name: ${APPLICATION_NAME}:latest
+    source:
+      git:
+        uri: ${GIT_URI}
+      type: Git
+    strategy:
+      type: Source
+      sourceStrategy:
+        env:
+        - name: APP_FILE
+          value: 'app.py'
+        - name: GIT_SSL_NO_VERIFY
+          value: 'true'
+        forcePull: true
+        from:
+          kind: DockerImage
+          name: 'docker.io/centos/python-36-centos7:latest'
+    triggers:
+    - imageChange: {}
+      type: ImageChange
+    - type: ConfigChange
+
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: ${APPLICATION_NAME}
+    labels:
+      deploymentConfig: ${APPLICATION_NAME}
+      app: ${APPLICATION_NAME}
+  spec:
+    replicas: 1
+    selector:
+      deploymentConfig: ${APPLICATION_NAME}
+    strategy:
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          deploymentConfig: ${APPLICATION_NAME}
+          app: ${APPLICATION_NAME}
+      spec:
+        containers:
+        - env:
+          - name: PROM_BACKUP_ALL
+            value: "true"
+          - name: BEARER_TOKEN
+            value: "${BEARER_TOKEN}"
+          - name: URL
+            value: "${URL}"
+          - name: BOTO_ACCESS_KEY
+            value: "${BOTO_ACCESS_KEY}"
+          - name: BOTO_SECRET_KEY
+            value: "${BOTO_SECRET_KEY}"
+          - name: BOTO_OBJECT_STORE
+            value: "${BOTO_OBJECT_STORE}"
+          - name: BOTO_STORE_ENDPOINT
+            value: "${BOTO_STORE_ENDPOINT}"
+          - name: CHUNK_SIZE
+            value: "${CHUNK_SIZE}"
+          - name: DATA_SIZE
+            value: "${DATA_SIZE}"
+          - name: TRAINING_REPEAT_HOURS
+            value: "${TRAINING_REPEAT_HOURS}"
+          - name: DATA_WINDOW_SIZE
+            value: "${DATA_WINDOW_SIZE}"
+          - name: STORE_INTERMEDIATE_DATA
+            value: "${STORE_INTERMEDIATE_DATA}"
+          - name: GET_OLDER_DATA
+            value: "${GET_OLDER_DATA}"
+          image: ${APPLICATION_NAME}
+          imagePullPolicy: IfNotPresent
+          name: ${APPLICATION_NAME}
+          resources:
+            requests:
+              memory: 500Mi
+              cpu: "4"
+            limits:
+              memory: 16Gi
+              cpu: "4"
+          terminationMessagePath: /dev/termination-log
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+          - ${APPLICATION_NAME}
+        from:
+          kind: ImageStreamTag
+          name: ${APPLICATION_NAME}:latest
+      type: ImageChange
+    - type: ConfigChange
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${APPLICATION_NAME}
+    labels:
+      app: ${APPLICATION_NAME}
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      deploymentConfig: ${APPLICATION_NAME}
+
+- apiVersion: v1
+  kind: Route
+  metadata:
+    labels:
+      app: ${APPLICATION_NAME}
+    name: ${APPLICATION_NAME}
+  spec:
+    port:
+      targetPort: 8080-tcp
+    to:
+      kind: Service
+      name: ${APPLICATION_NAME}
