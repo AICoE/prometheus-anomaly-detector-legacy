@@ -80,10 +80,54 @@ This will create a deployment on OpenShift and which after training the prophet 
 
 Following is a sample web page view of what the metrics will look like:
 ```
-# HELP process_virtual_memory_bytes Virtual memory size in bytes. # TYPE process_virtual_memory_bytes gauge process_virtual_memory_bytes 2834034688.0 # HELP process_resident_memory_bytes Resident memory size in bytes. # TYPE process_resident_memory_bytes gauge process_resident_memory_bytes 1400197120.0 # HELP process_start_time_seconds Start time of the process since unix epoch in seconds. # TYPE process_start_time_seconds gauge process_start_time_seconds 1534190296.29 # HELP process_cpu_seconds_total Total user and system CPU time spent in seconds. # TYPE process_cpu_seconds_total counter process_cpu_seconds_total 3421.92 # HELP process_open_fds Number of open file descriptors. # TYPE process_open_fds gauge process_open_fds 6.0 # HELP process_max_fds Maximum number of open file descriptors. # TYPE process_max_fds gauge process_max_fds 1048576.0 # HELP python_info Python platform information # TYPE python_info gauge python_info{implementation="CPython",major="3",minor="6",patchlevel="3",version="3.6.3"} 1.0 # HELP predicted_values_prophet Forecasted value from Prophet model # TYPE predicted_values_prophet gauge predicted_values_prophet{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 33641.95330427749 # HELP predicted_values_prophet_yhat_upper Forecasted value upper bound from Prophet model # TYPE predicted_values_prophet_yhat_upper gauge predicted_values_prophet_yhat_upper{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 39693.72640184718 # HELP predicted_values_prophet_yhat_lower Forecasted value lower bound from Prophet model # TYPE predicted_values_prophet_yhat_lower gauge predicted_values_prophet_yhat_lower{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 27893.994518936575 # HELP predicted_values_fourier Forecasted value from Fourier Transform model # TYPE predicted_values_fourier gauge predicted_values_fourier{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 30894.064782203226 # HELP predicted_values_fourier_yhat_upper Forecasted value upper bound from Fourier Transform model # TYPE predicted_values_fourier_yhat_upper gauge predicted_values_fourier_yhat_upper{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 38670.03343554405 # HELP predicted_values_fourier_yhat_lower Forecasted value lower bound from Fourier Transform model # TYPE predicted_values_fourier_yhat_lower gauge predicted_values_fourier_yhat_lower{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 27308.08660866449 # HELP http_requests_total Total HTTP Requests (count) # TYPE http_requests_total counter http_requests_total{endpoint="/",method="GET",status_code="200"} 1.0 # HELP http_requests_inprogress Number of in progress HTTP requests # TYPE http_requests_inprogress gauge http_requests_inprogress 0.0 # HELP http_request_duration_seconds HTTP request latency (seconds) # TYPE http_request_duration_seconds histogram http_request_duration_seconds_bucket{le="0.005"} 1.0 http_request_duration_seconds_bucket{le="0.01"} 1.0 http_request_duration_seconds_bucket{le="0.025"} 1.0 http_request_duration_seconds_bucket{le="0.05"} 1.0 http_request_duration_seconds_bucket{le="0.075"} 1.0 http_request_duration_seconds_bucket{le="0.1"} 1.0 http_request_duration_seconds_bucket{le="0.25"} 1.0 http_request_duration_seconds_bucket{le="0.5"} 1.0 http_request_duration_seconds_bucket{le="0.75"} 1.0 http_request_duration_seconds_bucket{le="1.0"} 1.0 http_request_duration_seconds_bucket{le="2.5"} 1.0 http_request_duration_seconds_bucket{le="5.0"} 1.0 http_request_duration_seconds_bucket{le="7.5"} 1.0 http_request_duration_seconds_bucket{le="10.0"} 1.0 http_request_duration_seconds_bucket{le="+Inf"} 1.0 http_request_duration_seconds_count 1.0 http_request_duration_seconds_sum 8.503720164299011e-05 # HELP packages_newly_added Packages newly added # TYPE packages_newly_added gauge packages_newly_added 0.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 1367629824.0
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 314249216.0
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1534355699.25
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 92.88
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 10.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1024.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="6",patchlevel="5",version="3.6.5"} 1.0
+# HELP predicted_values_prophet Forecasted value from Prophet model
+# TYPE predicted_values_prophet gauge
+predicted_values_prophet{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 32141.95665653859
+# HELP predicted_values_prophet_yhat_upper Forecasted value upper bound from Prophet model
+# TYPE predicted_values_prophet_yhat_upper gauge
+predicted_values_prophet_yhat_upper{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 36325.72878602885
+# HELP predicted_values_prophet_yhat_lower Forecasted value lower bound from Prophet model
+# TYPE predicted_values_prophet_yhat_lower gauge
+predicted_values_prophet_yhat_lower{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 27881.58691175386
+# HELP predicted_values_fourier Forecasted value from Fourier Transform model
+# TYPE predicted_values_fourier gauge
+predicted_values_fourier{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 29838.64724605837
+# HELP predicted_values_fourier_yhat_upper Forecasted value upper bound from Fourier Transform model
+# TYPE predicted_values_fourier_yhat_upper gauge
+predicted_values_fourier_yhat_upper{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 37111.31044977396
+# HELP predicted_values_fourier_yhat_lower Forecasted value lower bound from Fourier Transform model
+# TYPE predicted_values_fourier_yhat_lower gauge
+predicted_values_fourier_yhat_lower{beta_kubernetes_io_arch="amd64",beta_kubernetes_io_os="linux",instance="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",job="kubernetes-nodes",kubernetes_io_hostname="cpt-0001.datahub.prod.upshift.rdu2.redhat.com",node_role_kubernetes_io_compute="true",operation_type="create_container",provider="rhos",quantile="0.5",region="compute",size="small"} 29739.05799347848
 ```
 
 ## Built With
 
-* [Requests](http://docs.python-requests.org/en/master/) - HTTP Library for python
-* [Boto3](https://boto3.readthedocs.io/en/latest/reference/core/session.html) - AWS sdk for python
+* [fbprohphet](https://github.com/facebook/prophet) - Facebook's timeseries forecasting library
+* [requests](http://docs.python-requests.org/en/master/) - HTTP Library for python
+* [boto3](https://boto3.readthedocs.io/en/latest/reference/core/session.html) - AWS sdk for python
+* [pandas](http://pandas.pydata.org/) - High Performance Data Structure
+* [flask](http://flask.pocoo.org/) - A lightweight web application framework
+* [apscheduler](https://apscheduler.readthedocs.io/en/latest/) - Python Scheduling library
+* [prometheus_client](https://github.com/prometheus/client_python) - Official Python client for Prometheus
+* [sortedcontainers](http://www.grantjenks.com/docs/sortedcontainers/) - Pure python sorted simple data structures
