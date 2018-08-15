@@ -6,7 +6,7 @@ import bz2
 import pandas
 import argparse
 import pickle
-from flask import Flask, render_template_string, abort
+from flask import Flask, render_template_string, abort, Response
 from datetime import datetime, timedelta
 from prometheus_client import CollectorRegistry, generate_latest, REGISTRY, Counter, Gauge, Histogram
 from prometheus import Prometheus
@@ -47,7 +47,7 @@ TRUE_LIST = ["True", "true", "1", "y"]
 store_intermediate_data = os.getenv("STORE_INTERMEDIATE_DATA", "False") # Setting this to true will store intermediate dataframes to ceph
 
 
-if str(os.getenv('GET_OLDER_DATA',"True")) in TRUE_LIST:
+if str(os.getenv('GET_OLDER_DATA',"False")) in TRUE_LIST:
     print("Collecting previously stored data.........")
     data_dict = cp().get_latest_df_dict(data_storage_path)
     pass
@@ -216,7 +216,7 @@ def metrics():
 
         pass
 
-    return generate_latest(REGISTRY)
+    return Response(generate_latest(REGISTRY).decode("utf-8"), content_type='text; charset=utf-8')
 
 @app.route('/prometheus')
 @IN_PROGRESS.track_inprogress()
