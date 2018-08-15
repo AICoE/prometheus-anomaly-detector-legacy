@@ -144,23 +144,9 @@ PREDICTED_VALUES_FOURIER = Gauge('predicted_values_fourier', 'Forecasted value f
 PREDICTED_VALUES_FOURIER_UPPER = Gauge('predicted_values_fourier_yhat_upper', 'Forecasted value upper bound from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
 PREDICTED_VALUES_FOURIER_LOWER = Gauge('predicted_values_fourier_yhat_lower', 'Forecasted value lower bound from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
 
-# A counter to count the total number of HTTP requests
-REQUESTS = Counter('http_requests_total', 'Total HTTP Requests (count)', ['method', 'endpoint', 'status_code'])
-
-# A gauge (i.e. goes up and down) to monitor the total number of in progress requests
-IN_PROGRESS = Gauge('http_requests_inprogress', 'Number of in progress HTTP requests')
-
-# A histogram to measure the latency of the HTTP requests
-TIMINGS = Histogram('http_request_duration_seconds', 'HTTP request latency (seconds)')
-
 # Standard Flask route stuff.
 @app.route('/')
-# Helper annotation to measure how long a method takes and save as a histogram metric.
-@TIMINGS.time()
-# Helper annotation to increment a gauge when entering the method and decrementing when leaving.
-@IN_PROGRESS.track_inprogress()
 def hello_world():
-    REQUESTS.labels(method='GET', endpoint="/", status_code=200).inc()  # Increment the counter
     return 'Hello, World!'
 
 
