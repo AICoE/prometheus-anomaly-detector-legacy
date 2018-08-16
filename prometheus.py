@@ -22,6 +22,7 @@ class Prometheus:
         self.stored_data_range = stored_data
         self.DATA_CHUNK_SIZE_LIST = {
             '1m' : 60,
+            '3m' : 180,
             '5m' : 300,
             '30m': 1800,
             '1h' : 3600,

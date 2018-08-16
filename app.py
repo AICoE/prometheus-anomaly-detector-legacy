@@ -17,8 +17,7 @@ from ast import literal_eval
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 import atexit
-from scipy.stats import norm
-import numpy as np
+
 
 app = Flask(__name__)
 
@@ -49,7 +48,7 @@ TRUE_LIST = ["True", "true", "1", "y"]
 store_intermediate_data = os.getenv("STORE_INTERMEDIATE_DATA", "False") # Setting this to true will store intermediate dataframes to ceph
 
 
-if str(os.getenv('GET_OLDER_DATA',"False")) in TRUE_LIST:
+if str(os.getenv('GET_OLDER_DATA',"True")) in TRUE_LIST:
     print("Collecting previously stored data.........")
     data_dict = cp().get_latest_df_dict(data_storage_path)
     pass
@@ -71,65 +70,6 @@ predictions_dict_prophet = {}
 predictions_dict_fourier = {}
 current_metric_metadata = ""
 current_metric_metadata_dict = {}
-
-def detect_anomalies(predictions, data):
-    if len(predictions) != len(data) :
-        raise IndexError
-    
-    # parameters
-    lower_bound_thresh = predictions["yhat_lower"].min() 
-    upper_bound_thresh = predictions["yhat_upper"].max() 
-    diff_thresh = 2*data["y"].std() 
-    acc_thresh = int(0.1*np.shape(predictions)[0])
-    epsilon = .1 
-
-    diffs = []
-    acc = Accumulator(acc_thresh)
-    preds = np.array(predictions["yhat"])
-    dat = np.array(data["y"])
-    for i in range(0, np.shape(predictions)[0]):
-        diff = preds[i] - dat[i]
-        if abs(diff) > diff_thresh:
-            # upper bound anomaly, increment counter
-            acc.inc(1)
-        elif dat[i] < lower_bound_thresh:
-            # found trough, decrement so that acc will decay to 0
-            acc.inc(-3)
-        elif dat[i] > upper_bound_thresh:
-            # found peak, decrement so that acc will decay to 0
-            acc.inc(-3)
-        else:
-            # no anomaly, decrement by 2
-            acc.inc(-2)
-
-        diffs.append(max(diff, 0))
-    
-    if acc.count() > acc.thresh:
-        acc_anomaly = True
-    else:
-        acc_anomaly = False
-    w_size = int(0.8*len(data))
-    w_prime_size = len(data) - w_size
-
-    w = diffs[0:w_size]
-    w_prime = diffs[w_size:]
-
-    w_mu = np.mean(w)
-    w_std = np.std(w)
-    w_prime_mu = np.mean(w_prime)
-
-    if w_std == 0:
-        L_t = 0
-    else:
-        L_t = 1 - norm.sf((w_prime_mu - w_mu)/w_std)
-
-    print(L_t)
-    if L_t >= 1 - epsilon:
-        tail_prob_anomaly = True
-    else:
-        tail_prob_anomaly = False
-
-    return acc_anomaly and tail_prob_anomaly 
 
 # iteration = 0
 def job(current_time):
@@ -219,14 +159,18 @@ atexit.register(lambda: scheduler.shutdown())
 
 #Multiple gauges set for the predicted values
 print("current_metric_metadata_dict: ", current_metric_metadata_dict)
-PREDICTED_VALUES_PROPHET = Gauge('predicted_values_prophet', 'Forecasted value from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
-PREDICTED_VALUES_PROPHET_UPPER = Gauge('predicted_values_prophet_yhat_upper', 'Forecasted value upper bound from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
-PREDICTED_VALUES_PROPHET_LOWER = Gauge('predicted_values_prophet_yhat_lower', 'Forecasted value lower bound from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
+predicted_metric_name = "predicted_" + metric_name
+PREDICTED_VALUES_PROPHET = Gauge(predicted_metric_name + '_prophet', 'Forecasted value from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
+PREDICTED_VALUES_PROPHET_UPPER = Gauge(predicted_metric_name + '_prophet_yhat_upper', 'Forecasted value upper bound from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
+PREDICTED_VALUES_PROPHET_LOWER = Gauge(predicted_metric_name + '_prophet_yhat_lower', 'Forecasted value lower bound from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
 
-PREDICTED_VALUES_FOURIER = Gauge('predicted_values_fourier', 'Forecasted value from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
-PREDICTED_VALUES_FOURIER_UPPER = Gauge('predicted_values_fourier_yhat_upper', 'Forecasted value upper bound from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
-PREDICTED_VALUES_FOURIER_LOWER = Gauge('predicted_values_fourier_yhat_lower', 'Forecasted value lower bound from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
+PREDICTED_VALUES_FOURIER = Gauge(predicted_metric_name + '_fourier', 'Forecasted value from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
+PREDICTED_VALUES_FOURIER_UPPER = Gauge(predicted_metric_name + '_fourier_yhat_upper', 'Forecasted value upper bound from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
+PREDICTED_VALUES_FOURIER_LOWER = Gauge(predicted_metric_name + 'fourier_yhat_lower', 'Forecasted value lower bound from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
 
+PREDICTED_ANOMALY_PROPHET = Gauge(predicted_metric_name + '_prophet_anomaly', 'Detected Anomaly using the Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
+
+PREDICTED_ANOMALY_FOURIER = Gauge(predicted_metric_name + 'fourier_anomaly', 'Detected Anomaly using the Fourier model', [label for label in current_metric_metadata_dict if label != "__name__"])
 # Standard Flask route stuff.
 @app.route('/')
 def hello_world():
@@ -236,7 +180,12 @@ def hello_world():
 @app.route('/metrics')
 def metrics():
 
-    global predictions_dict_prophet, predictions_dict_fourier, current_metric_metadata, current_metric_metadata_dict
+    global predictions_dict_prophet, predictions_dict_fourier, current_metric_metadata, current_metric_metadata_dict, metric_name, url, token
+    metric = Prometheus(url=url, token=token, data_chunk='5m', stored_data='5m').get_metric(metric_name)
+    print("metric collected.")
+    # Convert data to json
+    metric = json.loads(metric)
+    live_data = get_df_from_json(metric)
     for metadata in predictions_dict_prophet:
 
         #Find the index matching with the current timestamp
@@ -263,6 +212,19 @@ def metrics():
         PREDICTED_VALUES_FOURIER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat'][index_fourier])
         PREDICTED_VALUES_FOURIER_UPPER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_upper'][index_fourier])
         PREDICTED_VALUES_FOURIER_LOWER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_lower'][index_fourier])
+
+
+
+        if (detect_anomalies(predictions_dict_fourier[metadata][len(predictions_dict_fourier[metadata])-(len(live_data[metadata])):],live_data[metadata])):
+            PREDICTED_ANOMALY_FOURIER.labels(**temp_current_metric_metadata_dict).set(1)
+        else:
+            PREDICTED_ANOMALY_FOURIER.labels(**temp_current_metric_metadata_dict).set(0)
+
+        if (detect_anomalies(predictions_dict_prophet[metadata][len(predictions_dict_prophet[metadata])-(len(live_data[metadata])):],live_data[metadata])):
+            PREDICTED_ANOMALY_PROPHET.labels(**temp_current_metric_metadata_dict).set(1)
+        else:
+            PREDICTED_ANOMALY_PROPHET.labels(**temp_current_metric_metadata_dict).set(0)
+
 
         pass
 
