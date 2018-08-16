@@ -166,11 +166,11 @@ PREDICTED_VALUES_PROPHET_LOWER = Gauge(predicted_metric_name + '_prophet_yhat_lo
 
 PREDICTED_VALUES_FOURIER = Gauge(predicted_metric_name + '_fourier', 'Forecasted value from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
 PREDICTED_VALUES_FOURIER_UPPER = Gauge(predicted_metric_name + '_fourier_yhat_upper', 'Forecasted value upper bound from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
-PREDICTED_VALUES_FOURIER_LOWER = Gauge(predicted_metric_name + 'fourier_yhat_lower', 'Forecasted value lower bound from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
+PREDICTED_VALUES_FOURIER_LOWER = Gauge(predicted_metric_name + '_fourier_yhat_lower', 'Forecasted value lower bound from Fourier Transform model', [label for label in current_metric_metadata_dict if label != "__name__"])
 
 PREDICTED_ANOMALY_PROPHET = Gauge(predicted_metric_name + '_prophet_anomaly', 'Detected Anomaly using the Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
 
-PREDICTED_ANOMALY_FOURIER = Gauge(predicted_metric_name + 'fourier_anomaly', 'Detected Anomaly using the Fourier model', [label for label in current_metric_metadata_dict if label != "__name__"])
+PREDICTED_ANOMALY_FOURIER = Gauge(predicted_metric_name + '_fourier_anomaly', 'Detected Anomaly using the Fourier model', [label for label in current_metric_metadata_dict if label != "__name__"])
 # Standard Flask route stuff.
 @app.route('/')
 def hello_world():
