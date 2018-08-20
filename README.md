@@ -21,15 +21,10 @@ Populating the Makefile is the most important step, as you can use this to run t
 
 ### Running on a local machine
 
-After setting up the credentials in your Makefile, to test if Prometheus credentials are correct, run the following command:
-```
-make run_list_metrics
-```
-This will list all the metrics that are stored on the Prometheus host.
+After setting up the credentials in your Makefile, run the following command to run a flask server which will regularly train and serve the predicted metrics as a prometheus target:
 
-Next, to backup the previous day's metrics data to a long term block storage, run the following command:
 ```
-make run_backup_all_metrics
+make run_model
 ```
 ## Running on Docker
 After populating all the required variables, set the name for your docker app by changing the docker_app_name variable. Then run the following command to build the docker image.
@@ -38,37 +33,11 @@ make docker_build
 ```
 This command uses the Dockerfile included in the repository to build an image. So you can use it to customize how the image is built.
 
-Run the following command to test if the docker image is functional:
-```
-make docker_test
-```
-Your output should be something like below:
-```
-usage: app.py [-h] [--day DAY] [--url URL] [--token TOKEN] [--backup-all]
-              [--list-metrics] [--chunk-size CHUNK_SIZE]
-              [metric [metric ...]]
-
-Backup Prometheus metrics
-
-positional arguments:
-  metric                Name of the metric, e.g. ALERTS - or --backup-all
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --day DAY             the day to backup in YYYYMMDD (defaults to previous
-                        day)
-  --url URL             URL of the prometheus server default:
-                        https://prometheus-openshift-devops-monitor.1b7d.free-
-                        stg.openshiftapps.com
-  --token TOKEN         Bearer token for prometheus
-  --backup-all          Backup all metrics
-  --list-metrics        List metrics from prometheus
-  --chunk-size CHUNK_SIZE
-                        Size of the chunk downloaded at an instance. Accepted
-                        values are 1m, 1h, 1d default: 1h
+After the image is successfully built, you can run the following command to run a flask server in a docker container, this command also specifies on which the predicted metrics are served which can be easily changed in the Makefile.
 
 ```
-
+make docker_run
+```
 ## Deploying on OpenShift
 
 * ### Deploying a flask application to predict and serve the predicted metrics:
