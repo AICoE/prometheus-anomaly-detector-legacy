@@ -80,68 +80,6 @@ class Prometheus:
         if metrics:
             return metrics
 
-    # def get_metrics_from_prom(self, name, chunks):
-    #     if not name in self.all_metrics():
-    #         raise Exception("{} is not a valid metric".format(name))
-    #
-    #     # start = self.start_time.timestamp()
-    #     end_timestamp = self.end_time.timestamp()
-    #     chunk_size = self.DATA_CHUNK_SIZE_LIST[self.data_chunk_size]
-    #     start = end_timestamp #- self.DATA_CHUNK_SIZE_LIST[self.stored_data_range] + chunk_size
-    #     data = []
-    #     for i in range(chunks):
-    #         # gc.collect() # Garbage collect to save Memory
-    #         if DEBUG:
-    #             print("Getting chunk: ", i)
-    #             print("Start Time: ",datetime.datetime.fromtimestamp(start))
-    #
-    #         tries = 0
-    #         while tries < MAX_REQUEST_RETRIES:  # Retry code in case of errors
-    #             response = requests.get('{0}/api/v1/query'.format(self.url),    # using the query API to get raw data
-    #                                     params={'query': name+'['+self.data_chunk_size+']',
-    #                                             'time': start
-    #                                             },
-    #                                     verify=False, # Disable ssl certificate verification temporarily
-    #                                     headers=self.headers)
-    #             if DEBUG:
-    #                 print(response.url)
-    #                 pass
-    #
-    #             tries+=1
-    #             if response.status_code == 200:
-    #                 data += response.json()['data']['result']
-    #
-    #                 if DEBUG:
-    #                     # print("Size of recent chunk = ",getsizeof(data))
-    #                     # print(data)
-    #                     print(datetime.datetime.fromtimestamp(response.json()['data']['result'][0]['values'][0][0]))
-    #                     print(datetime.datetime.fromtimestamp(response.json()['data']['result'][0]['values'][-1][0]))
-    #                     pass
-    #
-    #                 del response
-    #                 tries = MAX_REQUEST_RETRIES
-    #             elif response.status_code == 504:
-    #                 if tries >= MAX_REQUEST_RETRIES:
-    #                     self.connection_errors_count+=1
-    #                     return False
-    #                 else:
-    #                     print("Retry Count: ",tries)
-    #                     sleep(CONNECTION_RETRY_WAIT_TIME)    # Wait for a second before making a new request
-    #             else:
-    #                 if tries >= MAX_REQUEST_RETRIES:
-    #                     self.connection_errors_count+=1
-    #                     raise Exception("HTTP Status Code {} {} ({})".format(
-    #                         response.status_code,
-    #                         requests.status_codes._codes[response.status_code][0],
-    #                         response.content
-    #                     ))
-    #                 else:
-    #                     print("Retry Count: ",tries)
-    #                     sleep(CONNECTION_RETRY_WAIT_TIME)
-    #
-    #         start += chunk_size
-    #
-    #     return(json.dumps(data)) #This works
 
     def get_metrics_from_prom(self, name, chunks):
         if not name in self.all_metrics():
@@ -205,3 +143,19 @@ class Prometheus:
             start += chunk_size
 
         return(json.dumps(data))
+
+    def get_current_metric_value(self, metric_name, label_config = None):
+        data = []
+        if label_config:
+            label_list = [str(key+"="+ "'" + label_config[key]+ "'") for key in label_config]
+            # print(label_list)
+            query = metric_name + "{" + ",".join(label_list) + "}"
+        else:
+            query = metric_name
+        response = requests.get('{0}/api/v1/query'.format(self.url),    # using the query API to get raw data
+                                params={'query': query},#label_config},
+                                verify=False, # Disable ssl certificate verification temporarily
+                                headers=self.headers)
+        data += response.json()['data']['result']
+        return (json.dumps(data))
+        pass

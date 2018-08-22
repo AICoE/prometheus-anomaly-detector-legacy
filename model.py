@@ -77,6 +77,65 @@ def get_df_from_json(metric, metric_dict_pd={}, data_window=5):
         # break
     return metric_dict_pd
 
+
+def get_df_from_single_value_json(metric, metric_dict_pd={}, data_window=5):
+    '''
+    Method to convert a json object of a Prometheus metric to a dictionary of shaped Pandas DataFrames
+
+    The shape is dict[metric_metadata] = Pandas Object
+
+    Pandas Object = timestamp, value
+                    15737933, 1
+                    .....
+
+    This method can also be used to update an existing dictionary with new data
+    '''
+    # metric_dict = {}
+    current_time = datetime.now()
+    earliest_data_time = current_time - timedelta(days = data_window)
+
+
+    print("Pre-processing Data...........")
+    # metric_dict_pd = {}
+    # print("Length of metric: ", len(metric))
+    for row in metric:
+        # metric_dict[str(row['metric'])] = metric_dict.get(str(row['metric']),[]) + (row['values'])
+        metric_metadata = str(SortedDict(row['metric']))[11:-1] # Sort the dictionary and then convert it to string so it can be hashed
+        # print(metric_metadata)
+        # print("Row Values: ",row['values'])
+        if  metric_metadata not in metric_dict_pd:
+            metric_dict_pd[metric_metadata] = pandas.DataFrame([row['value']], columns=['ds', 'y']).apply(pandas.to_numeric, args=({"errors":"coerce"}))
+            metric_dict_pd[metric_metadata]['ds'] = pandas.to_datetime(metric_dict_pd[metric_metadata]['ds'], unit='s')
+            pass
+        else:
+            temp_df = pandas.DataFrame([row['value']], columns=['ds', 'y']).apply(pandas.to_numeric, args=({"errors":"coerce"}))
+            temp_df['ds'] = pandas.to_datetime(temp_df['ds'], unit='s')
+            # print(temp_df.head())
+            # print("Row Values: ",row['values']
+            # print("Temp Head Before 5: \n",temp_df.head(5))
+            # print("Head Before 5: \n",metric_dict_pd[metric_metadata].head(5))
+            # print("Tail Before 5: \n",metric_dict_pd[metric_metadata].tail(5))
+            metric_dict_pd[metric_metadata] = metric_dict_pd[metric_metadata].append(temp_df, ignore_index=True)
+            # print("Head 5: \n",metric_dict_pd[metric_metadata].head(5))
+            # print("Tail 5: \n",metric_dict_pd[metric_metadata].tail(5))
+            mask = (metric_dict_pd[metric_metadata]['ds'] > earliest_data_time)
+            metric_dict_pd[metric_metadata] = metric_dict_pd[metric_metadata].loc[mask]
+            # del temp_df
+            pass
+        metric_dict_pd[metric_metadata] = metric_dict_pd[metric_metadata].dropna()
+        metric_dict_pd[metric_metadata] = metric_dict_pd[metric_metadata].drop_duplicates('ds').sort_values(by=['ds']).reset_index(drop = True)
+
+        if len(metric_dict_pd[metric_metadata]) == 0:
+            del metric_dict_pd[metric_metadata]
+            pass
+        pass
+
+        # print(metric_dict_pd[metric_metadata])
+        # mask = (metric_dict_pd[metric_metadata]['ds'] > earliest_data_time) & (metric_dict_pd[metric_metadata]['ds'] <= current_time)
+        # metric_dict_pd[metric_metadata] = metric_dict_pd[metric_metadata].loc[mask]
+        # break
+    return metric_dict_pd
+
 def predict_metrics(pd_dict, prediction_range=1440):
     '''
     This Function takes input a dictionary of Pandas DataFrames, trains the Prophet model for each dataframe and returns a dictionary of predictions.

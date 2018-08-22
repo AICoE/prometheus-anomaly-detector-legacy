@@ -35,10 +35,10 @@ print("Using Metric {}.".format(metric_name))
 data_storage_path = "Data_Frames" + "/" + url[8:] + "/"+ metric_name + "/" + "prophet_model" + ".pkl"
 
 # Chunk size, download the complete data, but in smaller chunks, should be less than or equal to DATA_SIZE
-chunk_size = str(os.getenv('CHUNK_SIZE','2d'))
+chunk_size = str(os.getenv('CHUNK_SIZE','1h'))
 
 # Net data size to scrape from prometheus
-data_size = str(os.getenv('DATA_SIZE','2d'))
+data_size = str(os.getenv('DATA_SIZE','1h'))
 
 train_schedule = int(os.getenv('TRAINING_REPEAT_HOURS',6))
 
@@ -48,7 +48,7 @@ TRUE_LIST = ["True", "true", "1", "y"]
 store_intermediate_data = os.getenv("STORE_INTERMEDIATE_DATA", "False") # Setting this to true will store intermediate dataframes to ceph
 
 
-if str(os.getenv('GET_OLDER_DATA',"True")) in TRUE_LIST:
+if str(os.getenv('GET_OLDER_DATA',"False")) in TRUE_LIST:
     print("Collecting previously stored data.........")
     data_dict = cp().get_latest_df_dict(data_storage_path)
     pass
@@ -176,16 +176,13 @@ PREDICTED_ANOMALY_FOURIER = Gauge(predicted_metric_name + '_fourier_anomaly', 'D
 def hello_world():
     return 'Hello, World!'
 
+live_data_dict = {}
 
 @app.route('/metrics')
 def metrics():
+    global predictions_dict_prophet, predictions_dict_fourier, current_metric_metadata, current_metric_metadata_dict, metric_name, url, token, live_data_dict
 
-    global predictions_dict_prophet, predictions_dict_fourier, current_metric_metadata, current_metric_metadata_dict, metric_name, url, token
-    metric = Prometheus(url=url, token=token, data_chunk='5m', stored_data='5m').get_metric(metric_name)
-    print("metric collected.")
-    # Convert data to json
-    metric = json.loads(metric)
-    live_data = get_df_from_json(metric)
+
     for metadata in predictions_dict_prophet:
 
         #Find the index matching with the current timestamp
@@ -203,6 +200,18 @@ def metrics():
 
         del temp_current_metric_metadata_dict["__name__"]
 
+        metric = (Prometheus(url=url, token=token).get_current_metric_value(metric_name, temp_current_metric_metadata_dict))
+
+        print("metric collected.")
+
+        # Convert data to json
+        metric = json.loads(metric)
+
+        live_data_dict = get_df_from_single_value_json(metric, live_data_dict)
+
+
+        live_data_dict[metadata] = live_data_dict[metadata][-5:]
+        print(live_data_dict)
         # Update the metric values for prophet model
         PREDICTED_VALUES_PROPHET.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat'][index_prophet])
         PREDICTED_VALUES_PROPHET_UPPER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_upper'][index_prophet])
@@ -214,16 +223,17 @@ def metrics():
         PREDICTED_VALUES_FOURIER_LOWER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_fourier[metadata]['yhat_lower'][index_fourier])
 
 
+        if len(live_data_dict[metadata] >= 5):
+            pass
+            if (detect_anomalies(predictions_dict_fourier[metadata][len(predictions_dict_fourier[metadata])-(len(live_data_dict[metadata])):],live_data_dict[metadata])):
+                PREDICTED_ANOMALY_FOURIER.labels(**temp_current_metric_metadata_dict).set(1)
+            else:
+                PREDICTED_ANOMALY_FOURIER.labels(**temp_current_metric_metadata_dict).set(0)
 
-        if (detect_anomalies(predictions_dict_fourier[metadata][len(predictions_dict_fourier[metadata])-(len(live_data[metadata])):],live_data[metadata])):
-            PREDICTED_ANOMALY_FOURIER.labels(**temp_current_metric_metadata_dict).set(1)
-        else:
-            PREDICTED_ANOMALY_FOURIER.labels(**temp_current_metric_metadata_dict).set(0)
-
-        if (detect_anomalies(predictions_dict_prophet[metadata][len(predictions_dict_prophet[metadata])-(len(live_data[metadata])):],live_data[metadata])):
-            PREDICTED_ANOMALY_PROPHET.labels(**temp_current_metric_metadata_dict).set(1)
-        else:
-            PREDICTED_ANOMALY_PROPHET.labels(**temp_current_metric_metadata_dict).set(0)
+            if (detect_anomalies(predictions_dict_prophet[metadata][len(predictions_dict_prophet[metadata])-(len(live_data_dict[metadata])):],live_data_dict[metadata])):
+                PREDICTED_ANOMALY_PROPHET.labels(**temp_current_metric_metadata_dict).set(1)
+            else:
+                PREDICTED_ANOMALY_PROPHET.labels(**temp_current_metric_metadata_dict).set(0)
 
 
         pass
