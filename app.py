@@ -49,18 +49,15 @@ store_intermediate_data = os.getenv("STORE_INTERMEDIATE_DATA", "False") # Settin
 
 
 if str(os.getenv('GET_OLDER_DATA',"False")) in TRUE_LIST:
-    print("Collecting previously stored data.........")
-    data_dict = cp().get_latest_df_dict(data_storage_path)
+    print("Collecting previously stored data from {}".format(data_storage_path))
+    data_dict = cp().get_latest_df_dict(data_storage_path) # Need error handling inside this function, in case the storage path does not exist
     pass
 else:
     data_dict = {}
 
 
-default_label_config = "{'__name__': 'kubelet_docker_operations_latency_microseconds', 'beta_kubernetes_io_arch': 'amd64', 'beta_kubernetes_io_os': 'linux', 'instance': 'cpt-0001.ocp.prod.upshift.eng.rdu2.redhat.com', 'job': 'kubernetes-nodes', 'kubernetes_io_hostname': 'cpt-0001.ocp.prod.upshift.eng.rdu2.redhat.com', 'operation_type': 'version', 'provider': 'rhos', 'quantile': '0.5', 'region': 'compute', 'size': 'small'} "
-default_label_config = default_label_config +";" + "{'__name__': 'kubelet_docker_operations_latency_microseconds', 'beta_kubernetes_io_arch': 'amd64', 'beta_kubernetes_io_os': 'linux', 'instance': 'cpt-0001.ocp.prod.upshift.eng.rdu2.redhat.com', 'job': 'kubernetes-nodes', 'kubernetes_io_hostname': 'cpt-0001.ocp.prod.upshift.eng.rdu2.redhat.com', 'operation_type': 'version', 'provider': 'rhos', 'quantile': '0.9', 'region': 'compute', 'size': 'small'} "
-
 config_list = []
-fixed_label_config = str(os.getenv("LABEL_CONFIG",default_label_config))
+fixed_label_config = str(os.getenv("LABEL_CONFIG",None)) # by default it will train for all label configurations. WARNING: Tthat might take a lot of time depending on your metrics and cpu
 if fixed_label_config  != "None":
     config_list = fixed_label_config.split(";") # Separate multiple label configurations using a ';' (semi-colon)
     fixed_label_config_dict = literal_eval(config_list[0]) # # TODO: Add more error handling here
@@ -157,7 +154,7 @@ atexit.register(lambda: scheduler.shutdown())
 
 
 
-#Multiple gauges set for the predicted values
+# Initialize Multiple gauge metrics for the predicted values
 print("current_metric_metadata_dict: ", current_metric_metadata_dict)
 predicted_metric_name = "predicted_" + metric_name
 PREDICTED_VALUES_PROPHET = Gauge(predicted_metric_name + '_prophet', 'Forecasted value from Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
@@ -171,10 +168,11 @@ PREDICTED_VALUES_FOURIER_LOWER = Gauge(predicted_metric_name + '_fourier_yhat_lo
 PREDICTED_ANOMALY_PROPHET = Gauge(predicted_metric_name + '_prophet_anomaly', 'Detected Anomaly using the Prophet model', [label for label in current_metric_metadata_dict if label != "__name__"])
 
 PREDICTED_ANOMALY_FOURIER = Gauge(predicted_metric_name + '_fourier_anomaly', 'Detected Anomaly using the Fourier model', [label for label in current_metric_metadata_dict if label != "__name__"])
+
 # Standard Flask route stuff.
 @app.route('/')
 def hello_world():
-    return 'Hello, World!'
+    return 'This is just a test page. Please add "/metrics" to the url of this page to see the predicted metrics.'
 
 live_data_dict = {}
 
@@ -198,20 +196,25 @@ def metrics():
 
         temp_current_metric_metadata_dict = current_metric_metadata_dict.copy()
 
+        # delete the "__name__" key from the dictionary as we don't need it in labels (it is a non-permitted label) when serving the metrics
         del temp_current_metric_metadata_dict["__name__"]
 
+        # TODO: the following function does not have good error handling or retry code in case of get request failure, need to fix that
+        # Get the current metric value which will be compared with the predicted value to detect an anomaly
         metric = (Prometheus(url=url, token=token).get_current_metric_value(metric_name, temp_current_metric_metadata_dict))
 
-        print("metric collected.")
+        # print("metric collected.")
 
         # Convert data to json
         metric = json.loads(metric)
 
+        # Convert the json to a dictionary of pandas dataframes
         live_data_dict = get_df_from_single_value_json(metric, live_data_dict)
 
-
+        # Trim the live data dataframe to only 5 most recent values
         live_data_dict[metadata] = live_data_dict[metadata][-5:]
-        print(live_data_dict)
+        # print(live_data_dict)
+
         # Update the metric values for prophet model
         PREDICTED_VALUES_PROPHET.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat'][index_prophet])
         PREDICTED_VALUES_PROPHET_UPPER.labels(**temp_current_metric_metadata_dict).set(predictions_dict_prophet[metadata]['yhat_upper'][index_prophet])
@@ -225,6 +228,7 @@ def metrics():
 
         if len(live_data_dict[metadata] >= 5):
             pass
+            # Update the metric values for detected anomalies 1 in case of anomaly, 0 if not
             if (detect_anomalies(predictions_dict_fourier[metadata][len(predictions_dict_fourier[metadata])-(len(live_data_dict[metadata])):],live_data_dict[metadata])):
                 PREDICTED_ANOMALY_FOURIER.labels(**temp_current_metric_metadata_dict).set(1)
             else:
@@ -234,12 +238,11 @@ def metrics():
                 PREDICTED_ANOMALY_PROPHET.labels(**temp_current_metric_metadata_dict).set(1)
             else:
                 PREDICTED_ANOMALY_PROPHET.labels(**temp_current_metric_metadata_dict).set(0)
-
-
         pass
 
     return Response(generate_latest(REGISTRY).decode("utf-8"), content_type='text; charset=utf-8')
 
 if __name__ == "__main__":
+    # Running the flask web server
     app.run(host='0.0.0.0', port=8080)
     pass
