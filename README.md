@@ -1,5 +1,6 @@
 <!-- # train-prometheus
 A simple application to collect data from a prometheus host and train a model on it -->
+# !Newer rewritten version is available here: https://github.com/AICoE/prometheus-anomaly-detector
 
 # Train Prometheus
 This python application has been written to deploy a training pipeline on OpenShift. This pipeline will at regular specified intervals collect new data directly from a prometheus instance and train a model on it regularly. This application also hosts a web page which can be used as a target for prometheus. This target currently serves 6 different metrics using two different prediction models (Prophet and Fourier Extrapolation).
